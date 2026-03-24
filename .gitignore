@@ -1,0 +1,22 @@
+.idea
+
+# Dependencies
+node_modules/
+
+# Builds
+dist/
+out/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# System files
+.DS_Store
+*.iml
+
+# Env
+.env
+.env.*
