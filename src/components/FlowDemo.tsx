@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import  {
+import {
   ReactFlow,
   Background,
   Controls,
@@ -15,6 +15,11 @@ import  {
   NodeProps,
   useReactFlow,
   Panel,
+  MarkerType,
+  BaseEdge,
+  EdgeLabelRenderer,
+  getBezierPath,
+  EdgeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
@@ -24,6 +29,10 @@ type NodeData = {
   est30?: number;
   est70?: number;
   est95?: number;
+};
+
+type EdgeData = {
+  probability?: number;
 };
 
 // Dagre graph setup
@@ -53,8 +62,6 @@ const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => 
       ...node,
       targetPosition: isHorizontal ? Position.Left : Position.Top,
       sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
-      // We are shifting the dagre node position (which is at the center)
-      // to the top left so it matches the React Flow node position anchor
       position: {
         x: nodeWithPosition.x - nodeWidth / 2,
         y: nodeWithPosition.y - nodeHeight / 2,
@@ -98,7 +105,7 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
       />
 
       {/* Estimates */}
-      <div className="flex flex-col gap-1 text-[10px] text-gray-500">
+      <div className="flex flex-col gap-1 text-[10px] text-gray-500 pt-1">
         <div className="flex justify-between items-center gap-2">
           <span className="whitespace-nowrap">30% (Opt):</span>
           <input
@@ -133,10 +140,81 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   )
 }
 
+function EditableEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  sourcePosition,
+  targetPosition,
+  data,
+  markerEnd,
+}: EdgeProps<Edge<EdgeData>>) {
+  const { setEdges } = useReactFlow()
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX,
+    sourceY,
+    sourcePosition,
+    targetX,
+    targetY,
+    targetPosition,
+  })
 
+  const onProbabilityChange = useCallback(
+    (evt: React.ChangeEvent<HTMLInputElement>) => {
+      const val = parseFloat(evt.target.value) || 0
+      setEdges((eds) =>
+        eds.map((edge) => {
+          if (edge.id === id) {
+            return {
+              ...edge,
+              data: {
+                ...edge.data,
+                probability: val,
+              },
+            }
+          }
+          return edge
+        })
+      )
+    },
+    [id, setEdges]
+  )
+
+  return (
+    <>
+      <BaseEdge path={edgePath} markerEnd={markerEnd} />
+      <EdgeLabelRenderer>
+        <div
+          style={{
+            position: 'absolute',
+            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+            pointerEvents: 'all',
+          }}
+          className="bg-white px-1 py-0.5 rounded border border-blue-200 shadow-sm flex items-center gap-1 text-[10px]"
+        >
+          <input
+            type="number"
+            defaultValue={data?.probability ?? 100}
+            onChange={onProbabilityChange}
+            className="w-8 text-right outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5 text-blue-600 font-bold"
+            min="0"
+            max="100"
+          />
+          <span className="text-gray-400">%</span>
+        </div>
+      </EdgeLabelRenderer>
+    </>
+  )
+}
 
 const nodeTypes = {
   editable: EditableNode,
+}
+
+const edgeTypes = {
+  editable: EditableEdge,
 }
 
 const initialNodes: Node[] = [
@@ -146,8 +224,22 @@ const initialNodes: Node[] = [
 ]
 
 const initialEdges: Edge[] = [
-  { id: 'e1-2', source: '1', target: '2', animated: true },
-  { id: 'e1-3', source: '1', target: '3' },
+  { 
+    id: 'e1-2', 
+    source: '1', 
+    target: '2', 
+    type: 'editable',
+    data: { probability: 90 },
+    markerEnd: { type: MarkerType.ArrowClosed } 
+  },
+  { 
+    id: 'e1-3', 
+    source: '1', 
+    target: '3', 
+    type: 'editable',
+    data: { probability: 80 },
+    markerEnd: { type: MarkerType.ArrowClosed } 
+  },
 ]
 
 export default function FlowDemo() {
@@ -156,7 +248,12 @@ export default function FlowDemo() {
   const { fitView } = useReactFlow()
 
   const onConnect = useCallback((connection: Connection) => {
-    setEdges((eds) => addEdge({ ...connection, animated: true }, eds))
+    setEdges((eds) => addEdge({ 
+      ...connection, 
+      type: 'editable',
+      data: { probability: 100 },
+      markerEnd: { type: MarkerType.ArrowClosed } 
+    }, eds))
   }, [setEdges])
 
   const onLayout = useCallback(
@@ -186,6 +283,7 @@ export default function FlowDemo() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         fitView
       >
         <MiniMap />
