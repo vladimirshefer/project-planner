@@ -11,53 +11,46 @@ async function fetchTodos(): Promise<Todo[]> {
 }
 
 export default function App() {
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
+  const { data, isFetching } = useQuery({
     queryKey: ['todos'],
     queryFn: fetchTodos,
   })
 
   return (
-    <main className="mx-auto max-w-2xl p-6">
-      <h1 className="text-2xl font-bold">Planning Assistant</h1>
-
-      <section className="mt-6 rounded-lg border bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Sample Todos (React Query)</h2>
-          <button
-            className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-            onClick={() => refetch()}
-            disabled={isFetching}
-          >
-            {isFetching ? 'Refreshing…' : 'Refresh'}
-          </button>
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-gray-50">
+      {/* Header / Overlay */}
+      <header className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none">
+        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border shadow-sm pointer-events-auto">
+          <h1 className="text-xl font-bold text-gray-800">Planning Assistant</h1>
+          <p className="text-xs text-gray-500">Tree-based planning with probabilistic estimates</p>
         </div>
-
-        {isLoading && <p className="text-gray-600">Loading…</p>}
-        {isError && (
-          <p className="text-red-600">{(error as Error)?.message ?? 'Unknown error'}</p>
-        )}
-        {data && (
-          <ul className="list-disc space-y-1 pl-6">
-            {data.map((t) => (
-              <li key={t.id}>{t.title}</li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="mt-6 rounded-lg border bg-white p-4 shadow-sm">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">React Flow Demo</h2>
-          <span className="text-xs text-gray-500">drag nodes, connect them</span>
+        
+        {/* Compact Todo List as a toggleable or overlay element if needed, 
+            but for now let's just keep it as a small overlay info */}
+        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border shadow-sm pointer-events-auto max-w-xs">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold">Sync Status ({data?.length ?? 0})</h2>
+            <span className={`h-2 w-2 rounded-full ${isFetching ? 'bg-yellow-400 animate-pulse' : 'bg-green-500'}`}></span>
+          </div>
+          <p className="text-[10px] text-gray-400 leading-tight">
+            Canvas is now fullscreen. Drag to pan, scroll to zoom. Use the buttons on the right to layout.
+          </p>
         </div>
+      </header>
+
+      {/* Fullscreen Canvas */}
+      <div className="flex-grow relative">
         <ReactFlowProvider>
           <FlowDemo />
         </ReactFlowProvider>
-      </section>
+      </div>
 
-      <p className="mt-8 text-sm text-gray-500">
-        Tech stack: React + TypeScript + Vite + Tailwind CSS + @tanstack/react-query + @xyflow/react
-      </p>
-    </main>
+      {/* Footer Info */}
+      <footer className="absolute bottom-4 left-4 z-10 pointer-events-none">
+        <p className="text-[10px] text-gray-400 bg-white/50 backdrop-blur-sm px-2 py-1 rounded">
+          React + TypeScript + Tailwind + @xyflow/react
+        </p>
+      </footer>
+    </div>
   )
 }

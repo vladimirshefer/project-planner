@@ -275,7 +275,7 @@ export default function FlowDemo() {
   )
 
   return (
-    <div className="h-[600px] w-full overflow-hidden rounded-md border shadow-lg">
+    <div className="h-full w-full overflow-hidden">
       <ReactFlow
         nodes={nodes}
         edges={edges}
