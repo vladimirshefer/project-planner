@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import FlowDemo from './components/FlowDemo'
 
 type Todo = { id: number; title: string }
 
@@ -43,8 +44,16 @@ export default function App() {
         )}
       </section>
 
+      <section className="mt-6 rounded-lg border bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">React Flow Demo</h2>
+          <span className="text-xs text-gray-500">drag nodes, connect them</span>
+        </div>
+        <FlowDemo />
+      </section>
+
       <p className="mt-8 text-sm text-gray-500">
-        Tech stack: React + TypeScript + Vite + Tailwind CSS + @tanstack/react-query
+        Tech stack: React + TypeScript + Vite + Tailwind CSS + @tanstack/react-query + @xyflow/react
       </p>
     </main>
   )

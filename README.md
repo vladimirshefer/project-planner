@@ -17,6 +17,9 @@ npm run dev
 ```
 Open the printed local URL in your browser.
 
+### React Flow demo
+After starting the dev server, open the home page and scroll to the "React Flow Demo" section. You can drag nodes and connect them. The example is implemented in `src/components/FlowDemo.tsx` and embedded in `src/App.tsx`.
+
 ## Build
 ```bash
 npm run build
@@ -29,3 +32,4 @@ npm run preview
 - Vite 5
 - Tailwind CSS 3
 - @tanstack/react-query 5
+- @xyflow/react (React Flow) 12
