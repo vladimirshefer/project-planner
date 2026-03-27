@@ -1,4 +1,4 @@
-import { useCallback, ChangeEvent } from 'react'
+import { useCallback } from 'react'
 import  {
   ReactFlow,
   Background,
@@ -14,8 +14,10 @@ import  {
   Position,
   NodeProps,
   useReactFlow,
+  Panel,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
+import dagre from 'dagre'
 
 type NodeData = {
   label: string;
@@ -23,6 +25,45 @@ type NodeData = {
   est70?: number;
   est95?: number;
 };
+
+// Dagre graph setup
+const dagreGraph = new dagre.graphlib.Graph()
+dagreGraph.setDefaultEdgeLabel(() => ({}))
+
+const nodeWidth = 170
+const nodeHeight = 150
+
+const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => {
+  const isHorizontal = direction === 'LR'
+  dagreGraph.setGraph({ rankdir: direction })
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
+  })
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target)
+  })
+
+  dagre.layout(dagreGraph)
+
+  const newNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id)
+    return {
+      ...node,
+      targetPosition: isHorizontal ? Position.Left : Position.Top,
+      sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
+      // We are shifting the dagre node position (which is at the center)
+      // to the top left so it matches the React Flow node position anchor
+      position: {
+        x: nodeWithPosition.x - nodeWidth / 2,
+        y: nodeWithPosition.y - nodeHeight / 2,
+      },
+    }
+  })
+
+  return { nodes: newNodes, edges }
+}
 
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const { setNodes } = useReactFlow()
@@ -112,13 +153,32 @@ const initialEdges: Edge[] = [
 export default function FlowDemo() {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const { fitView } = useReactFlow()
 
   const onConnect = useCallback((connection: Connection) => {
     setEdges((eds) => addEdge({ ...connection, animated: true }, eds))
   }, [setEdges])
 
+  const onLayout = useCallback(
+    (direction: string) => {
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+        nodes,
+        edges,
+        direction
+      )
+
+      setNodes([...layoutedNodes])
+      setEdges([...layoutedEdges])
+
+      window.requestAnimationFrame(() => {
+        fitView()
+      })
+    },
+    [nodes, edges, setNodes, setEdges, fitView]
+  )
+
   return (
-    <div className="h-96 w-full overflow-hidden rounded-md border">
+    <div className="h-[600px] w-full overflow-hidden rounded-md border shadow-lg">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -131,6 +191,20 @@ export default function FlowDemo() {
         <MiniMap />
         <Controls />
         <Background gap={12} size={1} />
+        <Panel position="top-right" className="bg-white p-2 rounded shadow-md border flex gap-2">
+          <button
+            onClick={() => onLayout('TB')}
+            className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600 transition-colors"
+          >
+            Tree Layout (V)
+          </button>
+          <button
+            onClick={() => onLayout('LR')}
+            className="px-3 py-1 bg-slate-500 text-white rounded text-xs font-semibold hover:bg-slate-600 transition-colors"
+          >
+            Tree Layout (H)
+          </button>
+        </Panel>
       </ReactFlow>
     </div>
   )

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import FlowDemo from './components/FlowDemo'
+import { ReactFlowProvider } from '@xyflow/react'
 
 type Todo = { id: number; title: string }
 
@@ -49,7 +50,9 @@ export default function App() {
           <h2 className="text-lg font-semibold">React Flow Demo</h2>
           <span className="text-xs text-gray-500">drag nodes, connect them</span>
         </div>
-        <FlowDemo />
+        <ReactFlowProvider>
+          <FlowDemo />
+        </ReactFlowProvider>
       </section>
 
       <p className="mt-8 text-sm text-gray-500">
