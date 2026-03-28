@@ -72,15 +72,18 @@ export namespace StatsEngine {
    * Returns the probability (0 to 1) that the value is <= limit.
    */
   export function getProbabilityOfLimit(dist: Distribution, limit: number): number {
-    if (limit <= dist[0]) return 0;
-    if (limit >= dist[RESOLUTION - 1]) return 1;
+    const first = dist[0] ?? 0;
+    const last = dist[RESOLUTION - 1] ?? 0;
+    if (limit <= first) return 0;
+    if (limit >= last) return 1;
 
     // Binary search for the first index where dist[i] > limit
     let low = 0;
     let high = RESOLUTION - 1;
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
-      if (dist[mid] <= limit) {
+      const current = dist[mid] ?? 0;
+      if (current <= limit) {
         low = mid + 1;
       } else {
         high = mid - 1;

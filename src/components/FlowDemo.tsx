@@ -345,29 +345,22 @@ const initialEdges: Edge[] = [
 ]
 
 export default function FlowDemo() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved).nodes || initialNodes;
-      } catch (e) {
-        console.error('Failed to parse saved nodes', e);
-      }
-    }
-    return initialNodes;
-  })
+  const saved = localStorage.getItem(STORAGE_KEY);
 
-  const [edges, setEdges, onEdgesChange] = useEdgesState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        return JSON.parse(saved).edges || initialEdges;
-      } catch (e) {
-        console.error('Failed to parse saved edges', e);
-      }
+  let loadedNodes: Node<NodeData>[] = initialNodes;
+  let loadedEdges: Edge[] = initialEdges;
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      loadedNodes = parsed.nodes || initialNodes;
+      loadedEdges = parsed.edges || initialEdges;
+    } catch (e) {
+      console.error('Failed to parse saved graph', e);
     }
-    return initialEdges;
-  })
+  }
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(loadedNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(loadedEdges)
 
   const { fitView, screenToFlowPosition } = useReactFlow()
 
@@ -526,8 +519,9 @@ export default function FlowDemo() {
     });
   }, [screenToFlowPosition, addNodeAt]);
 
-  const onPaneDoubleClick = useCallback(
+  const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
+      if (event.detail !== 2) return;
       const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
@@ -545,7 +539,7 @@ export default function FlowDemo() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onPaneDoubleClick={onPaneDoubleClick}
+        onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
