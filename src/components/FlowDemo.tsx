@@ -38,48 +38,59 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   critical: 'bg-red-50 text-red-600 border-red-200',
 }
 
-const NODE_WIDTH = 220;
-const NODE_HEIGHT = 180;
+const NODE_WIDTH = 220
+const NODE_HEIGHT = 180
+
+const getNodeSize = (node: Node<NodeData>) => {
+  const measuredWidth = node.measured?.width ?? node.width
+  const measuredHeight = node.measured?.height ?? node.height
+  return {
+    width: measuredWidth && measuredWidth > 0 ? measuredWidth : NODE_WIDTH,
+    height: measuredHeight && measuredHeight > 0 ? measuredHeight : NODE_HEIGHT,
+  }
+}
 
 const getLayoutedElements = (
   nodes: Node<NodeData>[],
   edges: Edge[],
   direction: string = 'TB'
 ) => {
-  const dagreGraph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-  const isHorizontal = direction === 'LR';
+  const dagreGraph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}))
+  const isHorizontal = direction === 'LR'
 
   dagreGraph.setGraph({
     rankdir: direction,
     ranksep: 90,
     nodesep: 70,
-  });
+  })
 
   nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
-  });
+    const size = getNodeSize(node)
+    dagreGraph.setNode(node.id, size)
+  })
 
   edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target);
-  });
+    dagreGraph.setEdge(edge.source, edge.target)
+  })
 
-  dagre.layout(dagreGraph);
+  dagre.layout(dagreGraph)
 
   const layoutedNodes = nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id);
+    const nodeWithPosition = dagreGraph.node(node.id)
+    const size = getNodeSize(node)
 
     return {
       ...node,
       sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
       targetPosition: isHorizontal ? Position.Left : Position.Top,
       position: {
-        x: nodeWithPosition.x - NODE_WIDTH / 2,
-        y: nodeWithPosition.y - NODE_HEIGHT / 2,
+        x: nodeWithPosition.x - size.width / 2,
+        y: nodeWithPosition.y - size.height / 2,
       },
-    };
-  });
+    }
+  })
 
-  return { nodes: layoutedNodes, edges };
+  return { nodes: layoutedNodes, edges }
 }
 
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
