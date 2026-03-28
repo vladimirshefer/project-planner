@@ -25,7 +25,7 @@ import dagre from 'dagre'
 import { StatsEngine } from '../utils/stats-engine'
 import { ProjectStats } from '../utils/project-stats'
 import { EstimationsGraph } from '../utils/estimations-graph'
-import { FlowNodeView } from './FlowNodeView'
+import { NodeView } from './NodeView'
 
 type NodeData = EstimationsGraph.NodeData
 type EdgeData = EstimationsGraph.EdgeData
@@ -121,7 +121,7 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   )
 
   return (
-    <FlowNodeView
+    <NodeView
       data={data}
       priorities={priorities}
       riskLevels={riskLevels}

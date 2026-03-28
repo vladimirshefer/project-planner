@@ -1,18 +1,9 @@
-import { Handle, Position } from '@xyflow/react'
-import { EstimationsGraph } from '../utils/estimations-graph'
-import { ProjectStats } from '../utils/project-stats'
+import {Handle, Position} from '@xyflow/react'
+import {EstimationsGraph} from '../utils/estimations-graph'
+import {ProjectStats} from '../utils/project-stats'
 
 type NodeData = EstimationsGraph.NodeData
 type Priority = EstimationsGraph.Priority
-
-type FlowNodeViewProps = {
-  data: NodeData
-  priorities: Priority[]
-  riskLevels: ProjectStats.RiskLevel[]
-  totals: ReturnType<typeof ProjectStats.extractViewMarks> | null
-  onUpdateData: (key: keyof NodeData, value: any) => void
-  onDeleteNode: () => void
-}
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   minor: 'bg-slate-100 text-slate-600 border-slate-200',
@@ -21,14 +12,21 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   critical: 'bg-red-50 text-red-600 border-red-200',
 }
 
-export function FlowNodeView({
+export function NodeView({
   data,
   priorities,
   riskLevels,
   totals,
   onUpdateData,
   onDeleteNode,
-}: FlowNodeViewProps) {
+}: {
+  data: NodeData
+  priorities: Priority[]
+  riskLevels: ProjectStats.RiskLevel[]
+  totals: ReturnType<typeof ProjectStats.extractViewMarks> | null
+  onUpdateData: (key: keyof NodeData, value: any) => void
+  onDeleteNode: () => void
+}) {
   return (
     <div className="rounded border bg-white p-3 shadow-md min-w-[180px] flex flex-col gap-2">
       <Handle type="target" position={Position.Top} />
