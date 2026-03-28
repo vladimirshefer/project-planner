@@ -14,8 +14,16 @@ export namespace EstimationsGraph {
     risk: ProjectStats.RiskLevel
     priority: Priority
     limit?: number
+    assigneeIds?: string[]
+    requiredSkills?: string[]
     histogram?: StatsEngine.Distribution
     successProb?: number
+  }
+
+  export type WorkerDto = {
+    id: string
+    name: string
+    skills: string[]
   }
 
   export type EdgeData = {
@@ -29,6 +37,7 @@ export namespace EstimationsGraph {
   export type GraphState = {
     nodes: GraphNode[]
     edges: GraphEdge[]
+    workers: WorkerDto[]
   }
 
   export type SavedProject = {
@@ -65,6 +74,7 @@ export namespace EstimationsGraph {
           markerEnd: { type: MarkerType.ArrowClosed },
         },
       ],
+      workers: [],
     }
   }
 
@@ -78,10 +88,7 @@ export namespace EstimationsGraph {
       throw new Error('JSON must contain "nodes" and "edges" arrays.')
     }
 
-    return {
-      nodes: parsed.nodes as GraphNode[],
-      edges: parsed.edges as GraphEdge[],
-    }
+    return normalizeState(parsed)
   }
 
   export function loadFromStorage(storage: Storage = localStorage): GraphState {
@@ -113,6 +120,11 @@ export namespace EstimationsGraph {
       const parsed = JSON.parse(raw) as SavedProject[]
       if (!Array.isArray(parsed)) return []
       return parsed
+        .map((project) => ({
+          ...project,
+          state: normalizeState(project.state),
+        }))
+        .filter((project) => project.name)
     } catch {
       return []
     }
@@ -158,5 +170,22 @@ export namespace EstimationsGraph {
       if (label) unique.add(label)
     })
     return Array.from(unique)
+  }
+
+  function normalizeState(state: Partial<GraphState>): GraphState {
+    const rawNodes = Array.isArray(state.nodes) ? (state.nodes as GraphNode[]) : []
+    const rawEdges = Array.isArray(state.edges) ? (state.edges as GraphEdge[]) : []
+    return {
+      nodes: rawNodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          assigneeIds: Array.isArray(node.data?.assigneeIds) ? node.data.assigneeIds : [],
+          requiredSkills: Array.isArray(node.data?.requiredSkills) ? node.data.requiredSkills : [],
+        },
+      })),
+      edges: rawEdges,
+      workers: Array.isArray(state.workers) ? state.workers : [],
+    }
   }
 }

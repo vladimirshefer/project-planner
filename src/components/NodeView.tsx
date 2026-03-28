@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import {Handle, Position} from '@xyflow/react'
-import {EstimationsGraph} from '../utils/estimations-graph'
-import {ProjectStats} from '../utils/project-stats'
+import { Handle, Position } from '@xyflow/react'
+import { EstimationsGraph } from '../utils/estimations-graph'
+import { ProjectStats } from '../utils/project-stats'
 
 type NodeData = EstimationsGraph.NodeData
 type Priority = EstimationsGraph.Priority
@@ -22,6 +22,7 @@ const RISK_COLORS: Record<ProjectStats.RiskLevel, string> = {
 
 export function NodeView({
   data,
+  workers,
   priorities,
   riskLevels,
   totals,
@@ -29,6 +30,7 @@ export function NodeView({
   onDeleteNode,
 }: {
   data: NodeData
+  workers: EstimationsGraph.WorkerDto[]
   priorities: Priority[]
   riskLevels: ProjectStats.RiskLevel[]
   totals: ReturnType<typeof ProjectStats.extractViewMarks> | null
@@ -36,6 +38,8 @@ export function NodeView({
   onDeleteNode: () => void
 }) {
   const [isHardStopEnabled, setIsHardStopEnabled] = useState(data.limit !== undefined && data.limit !== null)
+  const [isSkillsEnabled, setIsSkillsEnabled] = useState((data.requiredSkills?.length ?? 0) > 0)
+  const [newSkill, setNewSkill] = useState('')
 
   useEffect(() => {
     if (data.limit !== undefined && data.limit !== null) {
@@ -43,16 +47,58 @@ export function NodeView({
     }
   }, [data.limit])
 
+  useEffect(() => {
+    if ((data.requiredSkills?.length ?? 0) > 0) {
+      setIsSkillsEnabled(true)
+    }
+  }, [data.requiredSkills])
+
+  const assigneeIds = data.assigneeIds ?? []
+  const assignees = workers.filter((worker) => assigneeIds.includes(worker.id))
+  const primaryAssignee = assignees[0]
+  const primaryInitials = getInitials(primaryAssignee?.name ?? 'Unassigned')
+
   return (
     <div className="rounded border bg-white p-2.5 shadow-md min-w-[180px] flex flex-col gap-2">
       <Handle type="target" position={Position.Top} />
 
-      <div className="flex justify-end -mb-1">
+      <div className="flex items-center justify-between -mb-1">
+        <details className="relative">
+          <summary className="list-none cursor-pointer select-none rounded-full">
+            <span className="flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold text-gray-700 bg-gray-50">
+              {primaryInitials}
+            </span>
+          </summary>
+          <div className="absolute left-0 mt-1 bg-white border rounded shadow-md z-10 min-w-[180px] max-h-[180px] overflow-auto p-1">
+            {workers.length === 0 && (
+              <div className="px-2 py-1.5 text-xs text-gray-500">No workers</div>
+            )}
+            {workers.map((worker) => {
+              const checked = assigneeIds.includes(worker.id)
+              return (
+                <label key={worker.id} className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...assigneeIds, worker.id]
+                        : assigneeIds.filter((id) => id !== worker.id)
+                      onUpdateData('assigneeIds', Array.from(new Set(next)))
+                    }}
+                  />
+                  <span className="truncate">{worker.name}</span>
+                </label>
+              )
+            })}
+          </div>
+        </details>
+
         <details className="relative">
           <summary className="list-none cursor-pointer select-none text-xs text-gray-500 px-1.5 py-0.5 rounded hover:bg-gray-100">
             ...
           </summary>
-          <div className="absolute right-0 mt-1 bg-white border rounded shadow-md z-10 min-w-[110px]">
+          <div className="absolute right-0 mt-1 bg-white border rounded shadow-md z-10 min-w-[190px] p-1">
             <button
               type="button"
               onClick={() => {
@@ -67,10 +113,66 @@ export function NodeView({
             >
               {isHardStopEnabled ? 'Disable hard stop' : 'Enable hard stop'}
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (isSkillsEnabled) {
+                  onUpdateData('requiredSkills', [])
+                  setIsSkillsEnabled(false)
+                  return
+                }
+                setIsSkillsEnabled(true)
+                onUpdateData('requiredSkills', data.requiredSkills ?? [])
+              }}
+              className="w-full text-left px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 border-b"
+            >
+              {isSkillsEnabled ? 'Disable required skills' : 'Add required skill'}
+            </button>
+
+            {isSkillsEnabled && (
+              <div className="px-2 py-1.5 border-b flex flex-col gap-1">
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={newSkill}
+                    onChange={(e) => setNewSkill(e.target.value)}
+                    placeholder="e.g. backend"
+                    className="w-full border rounded px-1.5 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <button
+                    type="button"
+                    className="px-2 py-1 text-[10px] rounded bg-blue-600 text-white"
+                    onClick={() => {
+                      const normalized = newSkill.trim().toLowerCase()
+                      if (!normalized) return
+                      const next = Array.from(new Set([...(data.requiredSkills ?? []), normalized]))
+                      onUpdateData('requiredSkills', next)
+                      setNewSkill('')
+                    }}
+                  >
+                    Add
+                  </button>
+                </div>
+                {(data.requiredSkills ?? []).map((skill) => (
+                  <div key={skill} className="flex items-center justify-between text-[10px] text-gray-700 bg-gray-50 rounded px-1.5 py-1">
+                    <span>{skill}</span>
+                    <button
+                      type="button"
+                      onClick={() => onUpdateData('requiredSkills', (data.requiredSkills ?? []).filter((s) => s !== skill))}
+                      className="text-red-600"
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             <button
               type="button"
               onClick={onDeleteNode}
-              className="w-full text-left px-2 py-1.5 text-xs text-red-600 hover:bg-red-50"
+              className="w-full text-left px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
             >
               Delete node
             </button>
@@ -123,6 +225,16 @@ export function NodeView({
                 onUpdateData('limit', isNaN(val) ? undefined : val)
               }}
             />
+          </div>
+        )}
+
+        {(data.requiredSkills?.length ?? 0) > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {(data.requiredSkills ?? []).map((skill) => (
+              <span key={skill} className="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+                {skill}
+              </span>
+            ))}
           </div>
         )}
 
@@ -182,4 +294,13 @@ export function NodeView({
       <Handle type="source" position={Position.Bottom} />
     </div>
   )
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return 'NA'
+  const first = parts[0] ?? ''
+  if (parts.length === 1) return first.slice(0, 2).toUpperCase()
+  const second = parts[1] ?? ''
+  return `${first.slice(0, 1)}${second.slice(0, 1)}`.toUpperCase()
 }

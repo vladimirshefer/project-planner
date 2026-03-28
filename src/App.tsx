@@ -1,28 +1,52 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { Link, Route, Routes, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import FlowDemo from './components/FlowDemo'
+import { TimelineView } from './components/TimelineView'
+import { WorkerPoolEditor } from './components/WorkerPoolEditor'
 import { EstimationsGraph } from './utils/estimations-graph'
+
+function LegacyRootRedirect() {
+  const [searchParams] = useSearchParams()
+  const projectId = searchParams.get('projectId')
+  if (projectId) {
+    return <Navigate to={`/projects/${projectId}`} replace />
+  }
+  return <Navigate to="/projects" replace />
+}
 
 function EditorPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const projectIdFromUrl = searchParams.get('projectId')
+  const { projectId = 'new' } = useParams()
 
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(null)
-  const [activeProjectName, setActiveProjectName] = useState<string | null>(null)
-  const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() => EstimationsGraph.loadFromStorage())
+  const isNew = projectId === 'new'
+  const loadedProject = useMemo(() => {
+    if (isNew) return null
+    return EstimationsGraph.getProjectById(projectId)
+  }, [isNew, projectId])
+
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(loadedProject?.id ?? null)
+  const [activeProjectName, setActiveProjectName] = useState<string | null>(loadedProject?.name ?? null)
+  const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() =>
+    loadedProject?.state ?? EstimationsGraph.loadFromStorage()
+  )
   const [editorVersion, setEditorVersion] = useState(0)
 
   useEffect(() => {
-    if (!projectIdFromUrl || projectIdFromUrl === activeProjectId) return
-    const project = EstimationsGraph.getProjectById(projectIdFromUrl)
-    if (!project) return
-    setActiveProjectId(project.id)
-    setActiveProjectName(project.name)
-    setEditorState(project.state)
+    if (isNew) {
+      setActiveProjectId(null)
+      setActiveProjectName(null)
+      setEditorState(EstimationsGraph.loadFromStorage())
+      setEditorVersion((v) => v + 1)
+      return
+    }
+
+    if (!loadedProject) return
+    setActiveProjectId(loadedProject.id)
+    setActiveProjectName(loadedProject.name)
+    setEditorState(loadedProject.state)
     setEditorVersion((v) => v + 1)
-  }, [projectIdFromUrl, activeProjectId])
+  }, [isNew, loadedProject])
 
   const onSaveProject = useCallback(
     (name: string, state: EstimationsGraph.GraphState) => {
@@ -33,14 +57,23 @@ function EditorPage() {
       })
       setActiveProjectId(saved.id)
       setActiveProjectName(saved.name)
-      navigate(`/?projectId=${saved.id}`, { replace: true })
+      navigate(`/projects/${saved.id}`, { replace: true })
     },
     [activeProjectId, navigate]
   )
 
-  const onOpenProjects = useCallback(() => {
-    navigate('/projects')
-  }, [navigate])
+  if (!isNew && !loadedProject) {
+    return (
+      <div className="h-screen w-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white border rounded p-6 text-sm text-gray-600 flex flex-col gap-3">
+          <p>Project not found.</p>
+          <Link to="/projects" className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white text-center">
+            Back to Projects
+          </Link>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-gray-50">
@@ -61,16 +94,12 @@ function EditorPage() {
             initialState={editorState}
             activeProjectName={activeProjectName}
             onSaveProject={onSaveProject}
-            onOpenProjects={onOpenProjects}
+            onOpenProjects={() => navigate('/projects')}
+            onOpenWorkers={activeProjectId ? () => navigate(`/projects/${activeProjectId}/workers`) : undefined}
+            onOpenTimeline={activeProjectId ? () => navigate(`/projects/${activeProjectId}/timeline`) : undefined}
           />
         </ReactFlowProvider>
       </div>
-
-      <footer className="absolute bottom-4 left-4 z-10 pointer-events-none">
-        <p className="text-[10px] text-gray-400 bg-white/50 backdrop-blur-sm px-2 py-1 rounded">
-          React + TypeScript + Tailwind + @xyflow/react
-        </p>
-      </footer>
     </div>
   )
 }
@@ -95,12 +124,12 @@ function ProjectsPage() {
       <div className="max-w-5xl mx-auto p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800">Projects</h1>
-          <Link
-            to="/"
-            className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white hover:bg-gray-900"
+          <button
+            onClick={() => navigate('/projects/new')}
+            className="px-3 py-1.5 text-sm font-semibold rounded bg-emerald-600 text-white hover:bg-emerald-700"
           >
-            Back to Editor
-          </Link>
+            New Project
+          </button>
         </div>
 
         <input
@@ -129,7 +158,7 @@ function ProjectsPage() {
                 </p>
               </div>
               <button
-                onClick={() => navigate(`/?projectId=${project.id}`)}
+                onClick={() => navigate(`/projects/${project.id}`)}
                 className="px-3 py-1.5 text-sm font-semibold rounded bg-blue-600 text-white hover:bg-blue-700"
               >
                 Open
@@ -142,11 +171,136 @@ function ProjectsPage() {
   )
 }
 
+function WorkersPage() {
+  const navigate = useNavigate()
+  const { projectId = '' } = useParams()
+
+  const initialProject = useMemo(() => EstimationsGraph.getProjectById(projectId), [projectId])
+  const [project, setProject] = useState(initialProject)
+
+  useEffect(() => {
+    setProject(initialProject)
+  }, [initialProject])
+
+  if (!project) {
+    return (
+      <div className="h-screen w-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white border rounded p-6 text-sm text-gray-600 flex flex-col gap-3">
+          <p>Project not found.</p>
+          <Link to="/projects" className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white text-center">
+            Back to Projects
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const onWorkersChange = (workers: EstimationsGraph.WorkerDto[]) => {
+    const validIds = new Set(workers.map((worker) => worker.id))
+    const nextNodes = project.state.nodes.map((node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        assigneeIds: (node.data.assigneeIds ?? []).filter((id) => validIds.has(id)),
+      },
+    }))
+
+    const nextState: EstimationsGraph.GraphState = {
+      ...project.state,
+      workers,
+      nodes: nextNodes,
+    }
+
+    const saved = EstimationsGraph.saveProject({
+      id: project.id,
+      name: project.name,
+      state: nextState,
+    })
+
+    setProject(saved)
+  }
+
+  return (
+    <div className="h-screen w-screen bg-gray-50 overflow-auto">
+      <div className="max-w-5xl mx-auto p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-800">Workers: {project.name}</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/projects/${project.id}/timeline`)}
+              className="px-3 py-1.5 text-sm font-semibold rounded bg-fuchsia-600 text-white hover:bg-fuchsia-700"
+            >
+              Timeline
+            </button>
+            <button
+              onClick={() => navigate(`/projects/${project.id}`)}
+              className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white hover:bg-gray-900"
+            >
+              Back to Editor
+            </button>
+          </div>
+        </div>
+
+        <WorkerPoolEditor workers={project.state.workers ?? []} onChange={onWorkersChange} />
+      </div>
+    </div>
+  )
+}
+
+function TimelinePage() {
+  const navigate = useNavigate()
+  const { projectId = '' } = useParams()
+  const project = useMemo(() => EstimationsGraph.getProjectById(projectId), [projectId])
+
+  if (!project) {
+    return (
+      <div className="h-screen w-screen bg-gray-50 flex items-center justify-center">
+        <div className="bg-white border rounded p-6 text-sm text-gray-600 flex flex-col gap-3">
+          <p>Project not found.</p>
+          <Link to="/projects" className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white text-center">
+            Back to Projects
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="h-screen w-screen bg-gray-50 overflow-auto">
+      <div className="max-w-6xl mx-auto p-6 flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-800">Timeline: {project.name}</h1>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/projects/${project.id}/workers`)}
+              className="px-3 py-1.5 text-sm font-semibold rounded bg-cyan-600 text-white hover:bg-cyan-700"
+            >
+              Workers
+            </button>
+            <button
+              onClick={() => navigate(`/projects/${project.id}`)}
+              className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white hover:bg-gray-900"
+            >
+              Back to Editor
+            </button>
+          </div>
+        </div>
+
+        <TimelineView state={project.state} />
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<EditorPage />} />
+      <Route path="/" element={<LegacyRootRedirect />} />
       <Route path="/projects" element={<ProjectsPage />} />
+      <Route path="/projects/new" element={<EditorPage />} />
+      <Route path="/projects/:projectId" element={<EditorPage />} />
+      <Route path="/projects/:projectId/workers" element={<WorkersPage />} />
+      <Route path="/projects/:projectId/timeline" element={<TimelinePage />} />
     </Routes>
   )
 }

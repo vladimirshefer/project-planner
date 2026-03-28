@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -33,6 +33,8 @@ type Priority = EstimationsGraph.Priority
 
 const NODE_WIDTH = 220
 const NODE_HEIGHT = 180
+
+const WorkerPoolContext = createContext<EstimationsGraph.WorkerDto[]>([])
 
 const getNodeSize = (node: Node<NodeData>) => {
   const measuredWidth = node.measured?.width ?? node.width
@@ -88,6 +90,7 @@ const getLayoutedElements = (
 
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const { setNodes, setEdges } = useReactFlow()
+  const workers = useContext(WorkerPoolContext)
 
   const updateNodeData = useCallback((key: keyof NodeData, value: any) => {
     setNodes((nds) =>
@@ -114,15 +117,15 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const riskLevels: ProjectStats.RiskLevel[] = ['low', 'medium', 'high', 'extreme']
   const priorities: Priority[] = ['minor', 'medium', 'major', 'critical']
 
-  // Extract sugar for presentation from the histogram
-  const totals = useMemo(() => 
-    data.histogram ? ProjectStats.extractViewMarks(data.histogram, data.successProb ?? 1) : null,
+  const totals = useMemo(
+    () => (data.histogram ? ProjectStats.extractViewMarks(data.histogram, data.successProb ?? 1) : null),
     [data.histogram, data.successProb]
   )
 
   return (
     <NodeView
       data={data}
+      workers={workers}
       priorities={priorities}
       riskLevels={riskLevels}
       totals={totals}
@@ -232,6 +235,8 @@ type FlowDemoProps = {
   activeProjectName?: string | null
   onSaveProject?: (name: string, state: EstimationsGraph.GraphState) => void
   onOpenProjects?: () => void
+  onOpenWorkers?: () => void
+  onOpenTimeline?: () => void
 }
 
 export default function FlowDemo({
@@ -239,6 +244,8 @@ export default function FlowDemo({
   activeProjectName,
   onSaveProject,
   onOpenProjects,
+  onOpenWorkers,
+  onOpenTimeline,
 }: FlowDemoProps) {
   const [modalMode, setModalMode] = useState<'export' | 'import' | null>(null)
   const [modalText, setModalText] = useState('')
@@ -248,110 +255,95 @@ export default function FlowDemo({
   const bootstrapState = initialState ?? fallbackState
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(bootstrapState.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(bootstrapState.edges)
+  const [workers, setWorkers] = useState<EstimationsGraph.WorkerDto[]>(bootstrapState.workers ?? [])
 
   const { fitView, screenToFlowPosition } = useReactFlow()
 
-  // --- Persistence ---
   useEffect(() => {
-    EstimationsGraph.saveToStorage({ nodes, edges })
-  }, [nodes, edges])
+    EstimationsGraph.saveToStorage({ nodes, edges, workers })
+  }, [nodes, edges, workers])
 
-  // --- Discrete Percentile Engine ---
   const computedNodes = useMemo(() => {
-    const adj = new Map<string, Array<{ to: string, prob: number, recovery: number }>>();
-    edges.forEach(e => {
-      if (!adj.has(e.source)) adj.set(e.source, []);
-      const prob = (e.data as EdgeData)?.probability ?? 100;
-      const recovery = (e.data as EdgeData)?.recovery ?? 0;
-      adj.get(e.source)!.push({ to: e.target, prob: prob / 100, recovery: recovery / 100 });
-    });
+    const adj = new Map<string, Array<{ to: string; prob: number; recovery: number }>>()
+    edges.forEach((e) => {
+      if (!adj.has(e.source)) adj.set(e.source, [])
+      const prob = (e.data as EdgeData)?.probability ?? 100
+      const recovery = (e.data as EdgeData)?.recovery ?? 0
+      adj.get(e.source)!.push({ to: e.target, prob: prob / 100, recovery: recovery / 100 })
+    })
 
-    const memo = new Map<string, { dist: StatsEngine.Distribution, successProb: number }>();
-    const processing = new Set<string>();
+    const memo = new Map<string, { dist: StatsEngine.Distribution; successProb: number }>()
+    const processing = new Set<string>()
 
-    function computeDist(id: string): { dist: StatsEngine.Distribution, successProb: number } {
-      if (memo.has(id)) return memo.get(id)!;
-      if (processing.has(id)) return { dist: StatsEngine.createConstant(0), successProb: 1 };
-      
-      processing.add(id);
-      const node = nodes.find(n => n.id === id);
+    function computeDist(id: string): { dist: StatsEngine.Distribution; successProb: number } {
+      if (memo.has(id)) return memo.get(id)!
+      if (processing.has(id)) return { dist: StatsEngine.createConstant(0), successProb: 1 }
+
+      processing.add(id)
+      const node = nodes.find((n) => n.id === id)
       if (!node) {
-        processing.delete(id);
-        return { dist: StatsEngine.createConstant(0), successProb: 1 };
+        processing.delete(id)
+        return { dist: StatsEngine.createConstant(0), successProb: 1 }
       }
 
-      const data = node.data;
-      // 1. Generate local histogram from user inputs
-      let currentDist = ProjectStats.generateFromMedianAndRisk(
-        data.estimate ?? 0, 
-        data.risk ?? 'low'
-      );
+      const data = node.data
+      let currentDist = ProjectStats.generateFromMedianAndRisk(data.estimate ?? 0, data.risk ?? 'low')
+      let successProb = 1.0
 
-      let successProb = 1.0;
+      const children = adj.get(id) || []
+      children.forEach((child) => {
+        const childResult = computeDist(child.to)
+        const childEffectiveDist = StatsEngine.applyProbability(childResult.dist, child.prob)
+        const childEffectiveSuccess = childResult.successProb + (1 - childResult.successProb) * child.recovery
+        const childContributionToSuccess = (1 - child.prob) + child.prob * childEffectiveSuccess
 
-      // 2. Conjoin with each child distribution
-      const children = adj.get(id) || [];
-      children.forEach(child => {
-        const childResult = computeDist(child.to);
-        
-        // Probability gating from the edge
-        const childEffectiveDist = StatsEngine.applyProbability(childResult.dist, child.prob);
-        
-        // Success probability propagates with recovery chance:
-        // P(Success) = P(Child Not Needed) + P(Child Needed) * [P(Child Success) + P(Child Fail) * P(Recovery)]
-        const childEffectiveSuccess = childResult.successProb + (1 - childResult.successProb) * child.recovery;
-        const childContributionToSuccess = (1 - child.prob) + (child.prob * childEffectiveSuccess);
-        
-        successProb *= childContributionToSuccess;
+        successProb *= childContributionToSuccess
+        currentDist = StatsEngine.convolve(currentDist, childEffectiveDist)
+      })
 
-        currentDist = StatsEngine.convolve(currentDist, childEffectiveDist);
-      });
-
-      // 3. Apply local hard-stop limit
       if (data.limit !== undefined && data.limit !== null) {
-        const localSuccessProb = StatsEngine.getProbabilityOfLimit(currentDist, data.limit);
-        successProb *= localSuccessProb;
+        const localSuccessProb = StatsEngine.getProbabilityOfLimit(currentDist, data.limit)
+        successProb *= localSuccessProb
       }
 
-      const result = { dist: currentDist, successProb };
-      memo.set(id, result);
-      processing.delete(id);
-      return result;
+      const result = { dist: currentDist, successProb }
+      memo.set(id, result)
+      processing.delete(id)
+      return result
     }
 
-    return nodes.map(n => {
-      const result = computeDist(n.id);
+    return nodes.map((n) => {
+      const result = computeDist(n.id)
       return {
         ...n,
         data: {
           ...n.data,
           histogram: result.dist,
-          successProb: result.successProb
-        }
-      };
-    });
-  }, [nodes, edges]);
+          successProb: result.successProb,
+        },
+      }
+    })
+  }, [nodes, edges])
 
   const onConnect = useCallback((connection: Connection) => {
-    setEdges((eds) => addEdge({ 
-      ...connection, 
-      type: 'editable',
-      data: { probability: 100 },
-      markerEnd: { type: MarkerType.ArrowClosed } 
-    }, eds))
+    setEdges((eds) =>
+      addEdge(
+        {
+          ...connection,
+          type: 'editable',
+          data: { probability: 100 },
+          markerEnd: { type: MarkerType.ArrowClosed },
+        },
+        eds
+      )
+    )
   }, [setEdges])
 
   const onLayout = useCallback(
     (direction: string) => {
-      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-        nodes,
-        edges,
-        direction
-      )
-
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, direction)
       setNodes([...layoutedNodes])
       setEdges([...layoutedEdges])
-
       window.requestAnimationFrame(() => {
         fitView()
       })
@@ -362,16 +354,17 @@ export default function FlowDemo({
   const onClear = useCallback(() => {
     if (window.confirm('Are you sure you want to clear the entire project?')) {
       EstimationsGraph.clearStorage()
-      setNodes([]);
-      setEdges([]);
+      setNodes([])
+      setEdges([])
+      setWorkers([])
     }
-  }, [setNodes, setEdges]);
+  }, [setNodes, setEdges])
 
   const openExportModal = useCallback(() => {
-    setModalText(EstimationsGraph.serialize({ nodes, edges }))
+    setModalText(EstimationsGraph.serialize({ nodes, edges, workers }))
     setImportError('')
     setModalMode('export')
-  }, [nodes, edges])
+  }, [nodes, edges, workers])
 
   const openImportModal = useCallback(() => {
     setModalText('')
@@ -389,6 +382,7 @@ export default function FlowDemo({
       const parsed = EstimationsGraph.deserialize(modalText)
       setNodes(parsed.nodes as Node<NodeData>[])
       setEdges(parsed.edges as Edge[])
+      setWorkers(parsed.workers ?? [])
       setModalMode(null)
       setImportError('')
     } catch (e) {
@@ -403,9 +397,9 @@ export default function FlowDemo({
   const addNodeAt = useCallback(
     (position: { x: number; y: number }) => {
       setNodes((nds) => {
-        let index = nds.length + 1;
+        let index = nds.length + 1
         while (nds.some((node) => node.id === `n-${index}`)) {
-          index += 1;
+          index += 1
         }
 
         const newNode: Node<NodeData> = {
@@ -417,161 +411,179 @@ export default function FlowDemo({
             estimate: 1,
             risk: 'medium',
             priority: 'medium',
+            assigneeIds: [],
+            requiredSkills: [],
           },
-        };
+        }
 
-        return [...nds, newNode];
-      });
+        return [...nds, newNode]
+      })
     },
     [setNodes]
-  );
+  )
 
   const onAddNode = useCallback(() => {
     const center = screenToFlowPosition({
       x: window.innerWidth / 2,
       y: window.innerHeight / 2,
-    });
+    })
 
     addNodeAt({
       x: center.x - 90,
       y: center.y - 40,
-    });
-  }, [screenToFlowPosition, addNodeAt]);
+    })
+  }, [screenToFlowPosition, addNodeAt])
 
   const onPaneClick = useCallback(
     (event: React.MouseEvent) => {
-      if (event.detail !== 2) return;
+      if (event.detail !== 2) return
       const position = screenToFlowPosition({
         x: event.clientX,
         y: event.clientY,
-      });
-      addNodeAt(position);
+      })
+      addNodeAt(position)
     },
     [screenToFlowPosition, addNodeAt]
-  );
+  )
 
   const onSaveClick = useCallback(() => {
     const suggestedName = activeProjectName?.trim() || 'New Project'
     const name = window.prompt('Save project as:', suggestedName)
     if (!name || !name.trim()) return
 
-    const state: EstimationsGraph.GraphState = { nodes, edges }
+    const state: EstimationsGraph.GraphState = { nodes, edges, workers }
     if (onSaveProject) {
       onSaveProject(name.trim(), state)
     } else {
       EstimationsGraph.saveProject({ name: name.trim(), state })
     }
-  }, [activeProjectName, nodes, edges, onSaveProject])
+  }, [activeProjectName, nodes, edges, workers, onSaveProject])
 
   return (
     <div className="h-full w-full overflow-hidden">
-      <ReactFlow
-        nodes={computedNodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onPaneClick={onPaneClick}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-      >
-        <MiniMap />
-        <Controls />
-        <Background gap={12} size={1} />
-        <Panel position="top-right" className="bg-white p-2 rounded shadow-md border flex gap-2">
-          <button
-            onClick={onSaveClick}
-            className="px-3 py-1 bg-teal-600 text-white rounded text-xs font-semibold hover:bg-teal-700 transition-colors"
-          >
-            Save
-          </button>
-          {onOpenProjects && (
+      <WorkerPoolContext.Provider value={workers}>
+        <ReactFlow
+          nodes={computedNodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onPaneClick={onPaneClick}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          fitView
+        >
+          <MiniMap />
+          <Controls />
+          <Background gap={12} size={1} />
+          <Panel position="top-right" className="bg-white p-2 rounded shadow-md border flex gap-2">
             <button
-              onClick={onOpenProjects}
-              className="px-3 py-1 bg-gray-700 text-white rounded text-xs font-semibold hover:bg-gray-800 transition-colors"
+              onClick={onSaveClick}
+              className="px-3 py-1 bg-teal-600 text-white rounded text-xs font-semibold hover:bg-teal-700 transition-colors"
             >
-              Projects
+              Save
             </button>
-          )}
-          <button
-            onClick={openExportModal}
-            className="px-3 py-1 bg-indigo-500 text-white rounded text-xs font-semibold hover:bg-indigo-600 transition-colors"
-          >
-            Export
-          </button>
-          <button
-            onClick={openImportModal}
-            className="px-3 py-1 bg-violet-500 text-white rounded text-xs font-semibold hover:bg-violet-600 transition-colors"
-          >
-            Import
-          </button>
-          <button
-            onClick={onAddNode}
-            className="px-3 py-1 bg-emerald-500 text-white rounded text-xs font-semibold hover:bg-emerald-600 transition-colors"
-          >
-            Add Node
-          </button>
-          <button
-            onClick={() => onLayout('TB')}
-            className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600 transition-colors"
-          >
-            Tree Layout (V)
-          </button>
-          <button
-            onClick={() => onLayout('LR')}
-            className="px-3 py-1 bg-slate-500 text-white rounded text-xs font-semibold hover:bg-slate-600 transition-colors"
-          >
-            Tree Layout (H)
-          </button>
-          <button
-            onClick={onClear}
-            className="px-3 py-1 border border-red-200 text-red-500 rounded text-xs font-semibold hover:bg-red-50 transition-colors"
-          >
-            Clear
-          </button>
-        </Panel>
+            {onOpenProjects && (
+              <button
+                onClick={onOpenProjects}
+                className="px-3 py-1 bg-gray-700 text-white rounded text-xs font-semibold hover:bg-gray-800 transition-colors"
+              >
+                Projects
+              </button>
+            )}
+            {onOpenWorkers && (
+              <button
+                onClick={onOpenWorkers}
+                className="px-3 py-1 bg-cyan-600 text-white rounded text-xs font-semibold hover:bg-cyan-700 transition-colors"
+              >
+                Workers
+              </button>
+            )}
+            {onOpenTimeline && (
+              <button
+                onClick={onOpenTimeline}
+                className="px-3 py-1 bg-fuchsia-600 text-white rounded text-xs font-semibold hover:bg-fuchsia-700 transition-colors"
+              >
+                Timeline
+              </button>
+            )}
+            <button
+              onClick={openExportModal}
+              className="px-3 py-1 bg-indigo-500 text-white rounded text-xs font-semibold hover:bg-indigo-600 transition-colors"
+            >
+              Export
+            </button>
+            <button
+              onClick={openImportModal}
+              className="px-3 py-1 bg-violet-500 text-white rounded text-xs font-semibold hover:bg-violet-600 transition-colors"
+            >
+              Import
+            </button>
+            <button
+              onClick={onAddNode}
+              className="px-3 py-1 bg-emerald-500 text-white rounded text-xs font-semibold hover:bg-emerald-600 transition-colors"
+            >
+              Add Node
+            </button>
+            <button
+              onClick={() => onLayout('TB')}
+              className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600 transition-colors"
+            >
+              Tree Layout (V)
+            </button>
+            <button
+              onClick={() => onLayout('LR')}
+              className="px-3 py-1 bg-slate-500 text-white rounded text-xs font-semibold hover:bg-slate-600 transition-colors"
+            >
+              Tree Layout (H)
+            </button>
+            <button
+              onClick={onClear}
+              className="px-3 py-1 border border-red-200 text-red-500 rounded text-xs font-semibold hover:bg-red-50 transition-colors"
+            >
+              Clear
+            </button>
+          </Panel>
 
-        {modalMode && (
-          <Panel position="top-left" className="!left-0 !top-0 !m-0 !p-0">
-            <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
-              <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-800">
-                    {modalMode === 'export' ? 'Export Graph JSON' : 'Import Graph JSON'}
-                  </h3>
-                  <button
-                    onClick={closeModal}
-                    className="px-2 py-1 text-xs rounded border text-gray-600 hover:bg-gray-50"
-                  >
-                    Close
-                  </button>
-                </div>
-                <textarea
-                  value={modalText}
-                  onChange={(e) => setModalText(e.target.value)}
-                  readOnly={modalMode === 'export'}
-                  className="w-full min-h-[320px] border rounded p-2 text-xs font-mono text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  placeholder='Paste JSON like {"nodes":[...], "edges":[...]}'
-                />
-                {importError && (
-                  <p className="text-xs text-red-600">{importError}</p>
-                )}
-                <div className="flex justify-end gap-2">
-                  {modalMode === 'import' && (
+          {modalMode && (
+            <Panel position="top-left" className="!left-0 !top-0 !m-0 !p-0">
+              <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-800">
+                      {modalMode === 'export' ? 'Export Graph JSON' : 'Import Graph JSON'}
+                    </h3>
                     <button
-                      onClick={onImportApply}
-                      className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600"
+                      onClick={closeModal}
+                      className="px-2 py-1 text-xs rounded border text-gray-600 hover:bg-gray-50"
                     >
-                      Apply Import
+                      Close
                     </button>
-                  )}
+                  </div>
+                  <textarea
+                    value={modalText}
+                    onChange={(e) => setModalText(e.target.value)}
+                    readOnly={modalMode === 'export'}
+                    className="w-full min-h-[320px] border rounded p-2 text-xs font-mono text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    placeholder='Paste JSON like {"nodes":[...], "edges":[...], "workers":[...]}'
+                  />
+                  {importError && <p className="text-xs text-red-600">{importError}</p>}
+                  <div className="flex justify-end gap-2">
+                    {modalMode === 'import' && (
+                      <button
+                        onClick={onImportApply}
+                        className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600"
+                      >
+                        Apply Import
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </Panel>
-        )}
-      </ReactFlow>
+            </Panel>
+          )}
+        </ReactFlow>
+      </WorkerPoolContext.Provider>
     </div>
   )
 }
