@@ -23,76 +23,17 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
+import { StatsEngine } from '../utils/stats-engine'
+import { ProjectStats } from '../utils/project-stats'
 
-// --- Stats Engine ---
-
-const RESOLUTION = 100;
-
-function generateDistribution(est30: number, est70: number, est95: number): number[] {
-  const samples = new Float64Array(RESOLUTION);
-  for (let i = 0; i < RESOLUTION; i++) {
-    const p = i; // 0 to 99
-    if (p <= 30) {
-      const t = p / 30;
-      samples[i] = (est30 / 2) * (1 - t) + est30 * t;
-    } else if (p <= 70) {
-      const t = (p - 30) / (70 - 30);
-      samples[i] = est30 * (1 - t) + est70 * t;
-    } else if (p <= 95) {
-      const t = (p - 70) / (95 - 70);
-      samples[i] = est70 * (1 - t) + est95 * t;
-    } else {
-      const t = (p - 95) / (100 - 95);
-      samples[i] = est95 * (1 - t) + (est95 * 3) * t;
-    }
-  }
-  return Array.from(samples);
-}
-
-function convolve(distA: number[], distB: number[]): number[] {
-  const combined = new Float64Array(RESOLUTION * RESOLUTION);
-  let k = 0;
-  for (let i = 0; i < RESOLUTION; i++) {
-    for (let j = 0; j < RESOLUTION; j++) {
-      combined[k++] = distA[i] + distB[j];
-    }
-  }
-  combined.sort();
-  
-  const result = new Array(RESOLUTION);
-  for (let i = 0; i < RESOLUTION; i++) {
-    result[i] = combined[i * RESOLUTION + Math.floor(RESOLUTION / 2)];
-  }
-  return result;
-}
-
-function applyProbability(dist: number[], prob: number): number[] {
-  const result = new Array(RESOLUTION);
-  const zeroCount = Math.round(RESOLUTION * (1 - prob));
-  for (let i = 0; i < zeroCount; i++) result[i] = 0;
-  for (let i = zeroCount; i < RESOLUTION; i++) {
-    const originalIdx = Math.floor(((i - zeroCount) / (RESOLUTION - zeroCount)) * RESOLUTION);
-    result[i] = dist[Math.min(originalIdx, RESOLUTION - 1)];
-  }
-  return result;
-}
-
-// --- Components ---
-
-type Totals = {
-  p30: number;
-  p50: number;
-  p70: number;
-  p95: number;
-  ev: number;
-};
+// --- Types ---
 
 type NodeData = {
   label: string;
   est30?: number;
   est70?: number;
   est95?: number;
-  totals?: Totals;
+  histogram?: StatsEngine.Distribution;
 };
 
 type EdgeData = {
@@ -156,7 +97,11 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
     )
   }, [id, setNodes])
 
-  const totals = data.totals
+  // Extract sugar for presentation from the histogram
+  const totals = useMemo(() => 
+    data.histogram ? ProjectStats.extractViewMarks(data.histogram) : null,
+    [data.histogram]
+  );
 
   return (
     <div className="rounded border bg-white p-3 shadow-md min-w-[170px] flex flex-col gap-2">
@@ -201,7 +146,7 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
         </div>
       </div>
 
-      {/* Calculated Rollups */}
+      {/* Calculated Rollups (Presentation Sugar) */}
       {totals && (
         <div className="mt-1 border-t pt-2 flex flex-col gap-1 bg-blue-50/50 -mx-3 px-3 pb-2">
           <div className="flex justify-between items-center font-bold text-xs text-blue-700">
@@ -341,34 +286,34 @@ export default function FlowDemo() {
       adj.get(e.source)!.push({ to: e.target, prob: prob / 100 });
     });
 
-    const memo = new Map<string, number[]>();
+    const memo = new Map<string, StatsEngine.Distribution>();
     const processing = new Set<string>();
 
-    function computeDist(id: string): number[] {
+    function computeDist(id: string): StatsEngine.Distribution {
       if (memo.has(id)) return memo.get(id)!;
-      if (processing.has(id)) return new Array(RESOLUTION).fill(0);
+      if (processing.has(id)) return StatsEngine.createConstant(0);
       
       processing.add(id);
       const node = nodes.find(n => n.id === id);
       if (!node) {
         processing.delete(id);
-        return new Array(RESOLUTION).fill(0);
+        return StatsEngine.createConstant(0);
       }
 
       const data = node.data as NodeData;
-      // 1. Generate local distribution
-      let currentDist = generateDistribution(
+      // 1. Generate local histogram from user inputs (Project Sugar)
+      let currentDist = ProjectStats.generateFromMarks(
         data.est30 ?? 0, 
         data.est70 ?? 0, 
         data.est95 ?? 0
       );
 
-      // 2. Convolve with each child distribution
+      // 2. Conjoin with each child distribution using pure StatsEngine
       const children = adj.get(id) || [];
       children.forEach(child => {
         const childBaseDist = computeDist(child.to);
-        const childEffectiveDist = applyProbability(childBaseDist, child.prob);
-        currentDist = convolve(currentDist, childEffectiveDist);
+        const childEffectiveDist = StatsEngine.applyProbability(childBaseDist, child.prob);
+        currentDist = StatsEngine.convolve(currentDist, childEffectiveDist);
       });
 
       memo.set(id, currentDist);
@@ -377,20 +322,12 @@ export default function FlowDemo() {
     }
 
     return nodes.map(n => {
-      const dist = computeDist(n.id);
-      const totals: Totals = {
-        p30: dist[30],
-        p50: dist[50],
-        p70: dist[70],
-        p95: dist[95],
-        ev: dist.reduce((a, b) => a + b, 0) / RESOLUTION
-      };
-
+      const histogram = computeDist(n.id);
       return {
         ...n,
         data: {
           ...n.data,
-          totals
+          histogram
         }
       };
     });
