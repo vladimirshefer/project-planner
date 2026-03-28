@@ -52,7 +52,49 @@ const PRIORITY_COLORS: Record<Priority, string> = {
   critical: 'bg-red-50 text-red-600 border-red-200',
 };
 
-// ... Dagre setup and layout code ...
+const NODE_WIDTH = 220;
+const NODE_HEIGHT = 180;
+
+const getLayoutedElements = (
+  nodes: Node<NodeData>[],
+  edges: Edge[],
+  direction: string = 'TB'
+) => {
+  const dagreGraph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
+  const isHorizontal = direction === 'LR';
+
+  dagreGraph.setGraph({
+    rankdir: direction,
+    ranksep: 90,
+    nodesep: 70,
+  });
+
+  nodes.forEach((node) => {
+    dagreGraph.setNode(node.id, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  });
+
+  edges.forEach((edge) => {
+    dagreGraph.setEdge(edge.source, edge.target);
+  });
+
+  dagre.layout(dagreGraph);
+
+  const layoutedNodes = nodes.map((node) => {
+    const nodeWithPosition = dagreGraph.node(node.id);
+
+    return {
+      ...node,
+      sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
+      targetPosition: isHorizontal ? Position.Left : Position.Top,
+      position: {
+        x: nodeWithPosition.x - NODE_WIDTH / 2,
+        y: nodeWithPosition.y - NODE_HEIGHT / 2,
+      },
+    };
+  });
+
+  return { nodes: layoutedNodes, edges };
+};
 
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const { setNodes } = useReactFlow()
