@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -367,6 +367,10 @@ const initialEdges: Edge[] = [
 ]
 
 export default function FlowDemo() {
+  const [modalMode, setModalMode] = useState<'export' | 'import' | null>(null)
+  const [modalText, setModalText] = useState('')
+  const [importError, setImportError] = useState('')
+
   const saved = localStorage.getItem(STORAGE_KEY);
 
   let loadedNodes: Node<NodeData>[] = initialNodes;
@@ -503,6 +507,40 @@ export default function FlowDemo() {
     }
   }, [setNodes, setEdges]);
 
+  const openExportModal = useCallback(() => {
+    setModalText(JSON.stringify({ nodes, edges }, null, 2))
+    setImportError('')
+    setModalMode('export')
+  }, [nodes, edges])
+
+  const openImportModal = useCallback(() => {
+    setModalText('')
+    setImportError('')
+    setModalMode('import')
+  }, [])
+
+  const closeModal = useCallback(() => {
+    setModalMode(null)
+    setImportError('')
+  }, [])
+
+  const onImportApply = useCallback(() => {
+    try {
+      const parsed = JSON.parse(modalText)
+      if (!parsed || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
+        setImportError('JSON must contain "nodes" and "edges" arrays.')
+        return
+      }
+
+      setNodes(parsed.nodes as Node<NodeData>[])
+      setEdges(parsed.edges as Edge[])
+      setModalMode(null)
+      setImportError('')
+    } catch {
+      setImportError('Invalid JSON.')
+    }
+  }, [modalText, setNodes, setEdges])
+
   const addNodeAt = useCallback(
     (position: { x: number; y: number }) => {
       setNodes((nds) => {
@@ -571,6 +609,18 @@ export default function FlowDemo() {
         <Background gap={12} size={1} />
         <Panel position="top-right" className="bg-white p-2 rounded shadow-md border flex gap-2">
           <button
+            onClick={openExportModal}
+            className="px-3 py-1 bg-indigo-500 text-white rounded text-xs font-semibold hover:bg-indigo-600 transition-colors"
+          >
+            Export
+          </button>
+          <button
+            onClick={openImportModal}
+            className="px-3 py-1 bg-violet-500 text-white rounded text-xs font-semibold hover:bg-violet-600 transition-colors"
+          >
+            Import
+          </button>
+          <button
             onClick={onAddNode}
             className="px-3 py-1 bg-emerald-500 text-white rounded text-xs font-semibold hover:bg-emerald-600 transition-colors"
           >
@@ -595,6 +645,46 @@ export default function FlowDemo() {
             Clear
           </button>
         </Panel>
+
+        {modalMode && (
+          <Panel position="top-left" className="!left-0 !top-0 !m-0 !p-0">
+            <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+              <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-800">
+                    {modalMode === 'export' ? 'Export Graph JSON' : 'Import Graph JSON'}
+                  </h3>
+                  <button
+                    onClick={closeModal}
+                    className="px-2 py-1 text-xs rounded border text-gray-600 hover:bg-gray-50"
+                  >
+                    Close
+                  </button>
+                </div>
+                <textarea
+                  value={modalText}
+                  onChange={(e) => setModalText(e.target.value)}
+                  readOnly={modalMode === 'export'}
+                  className="w-full min-h-[320px] border rounded p-2 text-xs font-mono text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  placeholder='Paste JSON like {"nodes":[...], "edges":[...]}'
+                />
+                {importError && (
+                  <p className="text-xs text-red-600">{importError}</p>
+                )}
+                <div className="flex justify-end gap-2">
+                  {modalMode === 'import' && (
+                    <button
+                      onClick={onImportApply}
+                      className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600"
+                    >
+                      Apply Import
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </Panel>
+        )}
       </ReactFlow>
     </div>
   )
