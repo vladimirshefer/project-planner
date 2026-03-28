@@ -4,6 +4,7 @@ import { ProjectStats } from './project-stats'
 
 export namespace EstimationsGraph {
   export const STORAGE_KEY = 'planning-assistant-graph-v1'
+  export const PROJECTS_STORAGE_KEY = 'planning-assistant-projects-v1'
 
   export type Priority = 'minor' | 'medium' | 'major' | 'critical'
 
@@ -28,6 +29,14 @@ export namespace EstimationsGraph {
   export type GraphState = {
     nodes: GraphNode[]
     edges: GraphEdge[]
+  }
+
+  export type SavedProject = {
+    id: string
+    name: string
+    updatedAt: string
+    tickets: string[]
+    state: GraphState
   }
 
   export function createInitialState(): GraphState {
@@ -94,5 +103,60 @@ export namespace EstimationsGraph {
 
   export function clearStorage(storage: Storage = localStorage): void {
     storage.removeItem(STORAGE_KEY)
+  }
+
+  export function listProjects(storage: Storage = localStorage): SavedProject[] {
+    const raw = storage.getItem(PROJECTS_STORAGE_KEY)
+    if (!raw) return []
+
+    try {
+      const parsed = JSON.parse(raw) as SavedProject[]
+      if (!Array.isArray(parsed)) return []
+      return parsed
+    } catch {
+      return []
+    }
+  }
+
+  export function getProjectById(id: string, storage: Storage = localStorage): SavedProject | null {
+    const projects = listProjects(storage)
+    return projects.find((project) => project.id === id) ?? null
+  }
+
+  export function saveProject(
+    input: { id?: string; name: string; state: GraphState },
+    storage: Storage = localStorage
+  ): SavedProject {
+    const projects = listProjects(storage)
+    const projectId = input.id ?? `p-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+    const now = new Date().toISOString()
+    const tickets = extractTickets(input.state)
+
+    const saved: SavedProject = {
+      id: projectId,
+      name: input.name.trim(),
+      updatedAt: now,
+      tickets,
+      state: input.state,
+    }
+
+    const existingIndex = projects.findIndex((project) => project.id === projectId)
+    if (existingIndex >= 0) {
+      projects[existingIndex] = saved
+    } else {
+      projects.unshift(saved)
+    }
+
+    storage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects))
+    return saved
+  }
+
+  function extractTickets(state: GraphState): string[] {
+    const unique = new Set<string>()
+    state.nodes.forEach((node) => {
+      const label = node.data?.label?.trim()
+      if (label) unique.add(label)
+    })
+    return Array.from(unique)
   }
 }

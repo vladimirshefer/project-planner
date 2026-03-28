@@ -16,7 +16,8 @@
     "@xyflow/react": "^12.0.0",
     "dagre": "^0.8.5",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.30.3"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

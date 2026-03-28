@@ -334,14 +334,27 @@ const edgeTypes = {
   editable: EditableEdge,
 }
 
-export default function FlowDemo() {
+type FlowDemoProps = {
+  initialState?: EstimationsGraph.GraphState
+  activeProjectName?: string | null
+  onSaveProject?: (name: string, state: EstimationsGraph.GraphState) => void
+  onOpenProjects?: () => void
+}
+
+export default function FlowDemo({
+  initialState,
+  activeProjectName,
+  onSaveProject,
+  onOpenProjects,
+}: FlowDemoProps) {
   const [modalMode, setModalMode] = useState<'export' | 'import' | null>(null)
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
 
-  const initialState = useMemo(() => EstimationsGraph.loadFromStorage(), [])
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(initialState.nodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialState.edges)
+  const fallbackState = useMemo(() => EstimationsGraph.loadFromStorage(), [])
+  const bootstrapState = initialState ?? fallbackState
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(bootstrapState.nodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(bootstrapState.edges)
 
   const { fitView, screenToFlowPosition } = useReactFlow()
 
@@ -544,6 +557,19 @@ export default function FlowDemo() {
     [screenToFlowPosition, addNodeAt]
   );
 
+  const onSaveClick = useCallback(() => {
+    const suggestedName = activeProjectName?.trim() || 'New Project'
+    const name = window.prompt('Save project as:', suggestedName)
+    if (!name || !name.trim()) return
+
+    const state: EstimationsGraph.GraphState = { nodes, edges }
+    if (onSaveProject) {
+      onSaveProject(name.trim(), state)
+    } else {
+      EstimationsGraph.saveProject({ name: name.trim(), state })
+    }
+  }, [activeProjectName, nodes, edges, onSaveProject])
+
   return (
     <div className="h-full w-full overflow-hidden">
       <ReactFlow
@@ -561,6 +587,20 @@ export default function FlowDemo() {
         <Controls />
         <Background gap={12} size={1} />
         <Panel position="top-right" className="bg-white p-2 rounded shadow-md border flex gap-2">
+          <button
+            onClick={onSaveClick}
+            className="px-3 py-1 bg-teal-600 text-white rounded text-xs font-semibold hover:bg-teal-700 transition-colors"
+          >
+            Save
+          </button>
+          {onOpenProjects && (
+            <button
+              onClick={onOpenProjects}
+              className="px-3 py-1 bg-gray-700 text-white rounded text-xs font-semibold hover:bg-gray-800 transition-colors"
+            >
+              Projects
+            </button>
+          )}
           <button
             onClick={openExportModal}
             className="px-3 py-1 bg-indigo-500 text-white rounded text-xs font-semibold hover:bg-indigo-600 transition-colors"
