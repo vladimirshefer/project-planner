@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -25,32 +25,18 @@ import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
 import { StatsEngine } from '../utils/stats-engine'
 import { ProjectStats } from '../utils/project-stats'
+import { EstimationsGraph } from '../utils/estimations-graph'
 
-// --- Types ---
-
-type Priority = 'minor' | 'medium' | 'major' | 'critical';
-
-type NodeData = {
-  label: string;
-  estimate: number;
-  risk: ProjectStats.RiskLevel;
-  priority: Priority;
-  limit?: number; // Hard-stop limit
-  histogram?: StatsEngine.Distribution;
-  successProb?: number; // Probability of completing before hard-stop
-};
-
-type EdgeData = {
-  probability?: number;
-  recovery?: number;
-};
+type NodeData = EstimationsGraph.NodeData
+type EdgeData = EstimationsGraph.EdgeData
+type Priority = EstimationsGraph.Priority
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   minor: 'bg-slate-100 text-slate-600 border-slate-200',
   medium: 'bg-blue-50 text-blue-600 border-blue-200',
   major: 'bg-orange-50 text-orange-600 border-orange-200',
   critical: 'bg-red-50 text-red-600 border-red-200',
-};
+}
 
 const NODE_WIDTH = 220;
 const NODE_HEIGHT = 180;
@@ -94,7 +80,7 @@ const getLayoutedElements = (
   });
 
   return { nodes: layoutedNodes, edges };
-};
+}
 
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const { setNodes, setEdges } = useReactFlow()
@@ -348,53 +334,21 @@ const edgeTypes = {
   editable: EditableEdge,
 }
 
-const STORAGE_KEY = 'planning-assistant-graph-v1';
-
-const initialNodes: Node<NodeData>[] = [
-  { id: '1', position: { x: 0, y: 50 }, data: { label: 'Total Project', estimate: 0, risk: 'low', priority: 'medium' }, type: 'editable' },
-  { id: '2', position: { x: 300, y: 0 }, data: { label: 'Feature A', estimate: 5, risk: 'medium', priority: 'medium' }, type: 'editable' },
-]
-
-const initialEdges: Edge[] = [
-  { 
-    id: 'e1-2', 
-    source: '1', 
-    target: '2', 
-    type: 'editable',
-    data: { probability: 100 },
-    markerEnd: { type: MarkerType.ArrowClosed } 
-  },
-]
-
 export default function FlowDemo() {
   const [modalMode, setModalMode] = useState<'export' | 'import' | null>(null)
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
 
-  const saved = localStorage.getItem(STORAGE_KEY);
-
-  let loadedNodes: Node<NodeData>[] = initialNodes;
-  let loadedEdges: Edge[] = initialEdges;
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      loadedNodes = parsed.nodes || initialNodes;
-      loadedEdges = parsed.edges || initialEdges;
-    } catch (e) {
-      console.error('Failed to parse saved graph', e);
-    }
-  }
-
-  const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(loadedNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(loadedEdges)
+  const initialState = useMemo(() => EstimationsGraph.loadFromStorage(), [])
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(initialState.nodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(initialState.edges)
 
   const { fitView, screenToFlowPosition } = useReactFlow()
 
   // --- Persistence ---
-  useMemo(() => {
-    const state = { nodes, edges };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }, [nodes, edges]);
+  useEffect(() => {
+    EstimationsGraph.saveToStorage({ nodes, edges })
+  }, [nodes, edges])
 
   // --- Discrete Percentile Engine ---
   const computedNodes = useMemo(() => {
@@ -501,14 +455,14 @@ export default function FlowDemo() {
 
   const onClear = useCallback(() => {
     if (window.confirm('Are you sure you want to clear the entire project?')) {
-      localStorage.removeItem(STORAGE_KEY);
+      EstimationsGraph.clearStorage()
       setNodes([]);
       setEdges([]);
     }
   }, [setNodes, setEdges]);
 
   const openExportModal = useCallback(() => {
-    setModalText(JSON.stringify({ nodes, edges }, null, 2))
+    setModalText(EstimationsGraph.serialize({ nodes, edges }))
     setImportError('')
     setModalMode('export')
   }, [nodes, edges])
@@ -526,18 +480,17 @@ export default function FlowDemo() {
 
   const onImportApply = useCallback(() => {
     try {
-      const parsed = JSON.parse(modalText)
-      if (!parsed || !Array.isArray(parsed.nodes) || !Array.isArray(parsed.edges)) {
-        setImportError('JSON must contain "nodes" and "edges" arrays.')
-        return
-      }
-
+      const parsed = EstimationsGraph.deserialize(modalText)
       setNodes(parsed.nodes as Node<NodeData>[])
       setEdges(parsed.edges as Edge[])
       setModalMode(null)
       setImportError('')
-    } catch {
-      setImportError('Invalid JSON.')
+    } catch (e) {
+      if (e instanceof Error) {
+        setImportError(e.message)
+      } else {
+        setImportError('Invalid JSON.')
+      }
     }
   }, [modalText, setNodes, setEdges])
 
