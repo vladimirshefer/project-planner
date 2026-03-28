@@ -52,18 +52,20 @@ export namespace ProjectStats {
     p95: number;
     p99: number;
     ev: number;
+    successProb: number;
   }
 
   /**
    * Extracts the view marks from a distribution array.
    */
-  export function extractViewMarks(dist: StatsEngine.Distribution): ViewMarks {
+  export function extractViewMarks(dist: StatsEngine.Distribution, successProb: number): ViewMarks {
     return {
       p50: StatsEngine.getPercentile(dist, 50),
       p80: StatsEngine.getPercentile(dist, 80),
       p95: StatsEngine.getPercentile(dist, 95),
       p99: StatsEngine.getPercentile(dist, 99),
-      ev: StatsEngine.getMean(dist)
+      ev: StatsEngine.getMean(dist),
+      successProb
     };
   }
 }

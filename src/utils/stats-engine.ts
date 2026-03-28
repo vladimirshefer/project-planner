@@ -68,13 +68,27 @@ export namespace StatsEngine {
   /**
    * Creates a distribution from a list of sorted samples.
    */
-  export function fromSamples(samples: number[]): Distribution {
-    const sorted = [...samples].sort((a, b) => a - b);
-    const result = new Array(RESOLUTION);
-    for (let i = 0; i < RESOLUTION; i++) {
-      const idx = Math.floor((i / RESOLUTION) * sorted.length);
-      result[i] = sorted[idx] ?? 0;
+  /**
+   * Returns the probability (0 to 1) that the value is <= limit.
+   */
+  export function getProbabilityOfLimit(dist: Distribution, limit: number): number {
+    if (limit <= dist[0]) return 0;
+    if (limit >= dist[RESOLUTION - 1]) return 1;
+
+    // Binary search for the first index where dist[i] > limit
+    let low = 0;
+    let high = RESOLUTION - 1;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if (dist[mid] <= limit) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
     }
-    return result;
+    
+    // Low is the count of samples <= limit. 
+    // Since we have RESOLUTION samples, probability is low / RESOLUTION.
+    return low / RESOLUTION;
   }
 }

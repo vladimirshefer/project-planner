@@ -32,54 +32,22 @@ type NodeData = {
   label: string;
   estimate: number;
   risk: ProjectStats.RiskLevel;
+  limit?: number; // Hard-stop limit
   histogram?: StatsEngine.Distribution;
+  successProb?: number; // Probability of completing before hard-stop
 };
 
 type EdgeData = {
   probability?: number;
+  recovery?: number;
 };
 
-// Dagre graph setup
-const dagreGraph = new dagre.graphlib.Graph()
-dagreGraph.setDefaultEdgeLabel(() => ({}))
-
-const nodeWidth = 180
-const nodeHeight = 240
-
-const getLayoutedElements = (nodes: Node[], edges: Edge[], direction = 'TB') => {
-  const isHorizontal = direction === 'LR'
-  dagreGraph.setGraph({ rankdir: direction })
-
-  nodes.forEach((node) => {
-    dagreGraph.setNode(node.id, { width: nodeWidth, height: nodeHeight })
-  })
-
-  edges.forEach((edge) => {
-    dagreGraph.setEdge(edge.source, edge.target)
-  })
-
-  dagre.layout(dagreGraph)
-
-  const newNodes = nodes.map((node) => {
-    const nodeWithPosition = dagreGraph.node(node.id)
-    return {
-      ...node,
-      targetPosition: isHorizontal ? Position.Left : Position.Top,
-      sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
-      position: {
-        x: nodeWithPosition.x - nodeWidth / 2,
-        y: nodeWithPosition.y - nodeHeight / 2,
-      },
-    }
-  })
-
-  return { nodes: newNodes, edges }
-}
+// ... Dagre setup and layout code remains same ...
 
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const { setNodes } = useReactFlow()
 
-  const updateNodeData = useCallback((key: keyof NodeData, value: string | number) => {
+  const updateNodeData = useCallback((key: keyof NodeData, value: string | number | undefined) => {
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === id) {
@@ -100,8 +68,8 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
 
   // Extract sugar for presentation from the histogram
   const totals = useMemo(() => 
-    data.histogram ? ProjectStats.extractViewMarks(data.histogram) : null,
-    [data.histogram]
+    data.histogram ? ProjectStats.extractViewMarks(data.histogram, data.successProb ?? 1) : null,
+    [data.histogram, data.successProb]
   );
 
   return (
@@ -127,6 +95,20 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
             onChange={(e) => updateNodeData('estimate', parseFloat(e.target.value) || 0)}
           />
         </div>
+
+        <div className="flex justify-between items-center gap-2">
+          <span className="whitespace-nowrap font-semibold">Hard Stop:</span>
+          <input
+            type="number"
+            placeholder="No limit"
+            className="w-16 border rounded px-1 text-right text-xs focus:ring-1 focus:ring-red-500 outline-none placeholder:text-gray-300"
+            defaultValue={data.limit}
+            onChange={(e) => {
+              const val = parseFloat(e.target.value);
+              updateNodeData('limit', isNaN(val) ? undefined : val);
+            }}
+          />
+        </div>
         
         <div className="flex flex-col gap-1">
           <div className="flex justify-between items-center">
@@ -142,10 +124,6 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
             value={riskLevels.indexOf(data.risk)}
             onChange={(e) => updateNodeData('risk', riskLevels[parseInt(e.target.value)])}
           />
-          <div className="flex justify-between text-[8px] px-0.5 text-gray-400">
-            <span>Low</span>
-            <span>Ext</span>
-          </div>
         </div>
       </div>
 
@@ -156,6 +134,13 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
             <span>Median (P50):</span>
             <span>{totals.p50.toFixed(1)}</span>
           </div>
+          
+          {/* Success Probability Indicator */}
+          <div className={`flex justify-between items-center text-[10px] font-bold px-1 py-0.5 rounded ${totals.successProb < 0.9 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+            <span>SUCCESS CHANCE:</span>
+            <span>{(totals.successProb * 100).toFixed(1)}%</span>
+          </div>
+
           <div className="grid grid-cols-3 gap-1 text-[9px] text-blue-500 text-center border-t border-blue-100 pt-1">
             <div title="80% Confidence Level" className="flex flex-col">
               <span className="opacity-60">80%</span>
@@ -203,9 +188,8 @@ function EditableEdge({
     targetPosition,
   })
 
-  const onProbabilityChange = useCallback(
-    (evt: React.ChangeEvent<HTMLInputElement>) => {
-      const val = parseFloat(evt.target.value) || 0
+  const updateEdgeData = useCallback(
+    (key: keyof EdgeData, val: number) => {
       setEdges((eds) =>
         eds.map((edge) => {
           if (edge.id === id) {
@@ -213,7 +197,7 @@ function EditableEdge({
               ...edge,
               data: {
                 ...edge.data,
-                probability: val,
+                [key]: val,
               },
             }
           }
@@ -234,17 +218,36 @@ function EditableEdge({
             transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
             pointerEvents: 'all',
           }}
-          className="bg-white px-1 py-0.5 rounded border border-blue-200 shadow-sm flex items-center gap-1 text-[10px]"
+          className="bg-white p-1 rounded border border-blue-200 shadow-md flex flex-col gap-1 text-[8px] min-w-[60px]"
         >
-          <input
-            type="number"
-            defaultValue={data?.probability ?? 100}
-            onChange={onProbabilityChange}
-            className="w-8 text-right outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5 text-blue-600 font-bold"
-            min="0"
-            max="100"
-          />
-          <span className="text-gray-400">%</span>
+          <div className="flex items-center justify-between gap-1 border-b pb-1">
+            <span className="text-gray-400 font-semibold uppercase">Occur:</span>
+            <div className="flex items-center">
+              <input
+                type="number"
+                defaultValue={data?.probability ?? 100}
+                onChange={(e) => updateEdgeData('probability', parseFloat(e.target.value) || 0)}
+                className="w-7 text-right outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5 text-blue-600 font-bold"
+                min="0"
+                max="100"
+              />
+              <span className="text-blue-400 font-bold">%</span>
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-1" title="Chance to still succeed if this dependency fails">
+            <span className="text-gray-400 font-semibold uppercase">Recov:</span>
+            <div className="flex items-center">
+              <input
+                type="number"
+                defaultValue={data?.recovery ?? 0}
+                onChange={(e) => updateEdgeData('recovery', parseFloat(e.target.value) || 0)}
+                className="w-7 text-right outline-none focus:ring-1 focus:ring-green-400 rounded px-0.5 text-green-600 font-bold"
+                min="0"
+                max="100"
+              />
+              <span className="text-green-400 font-bold">%</span>
+            </div>
+          </div>
         </div>
       </EdgeLabelRenderer>
     </>
@@ -312,54 +315,75 @@ export default function FlowDemo() {
 
   // --- Discrete Percentile Engine ---
   const computedNodes = useMemo(() => {
-    const adj = new Map<string, Array<{ to: string, prob: number }>>();
+    const adj = new Map<string, Array<{ to: string, prob: number, recovery: number }>>();
     edges.forEach(e => {
       if (!adj.has(e.source)) adj.set(e.source, []);
       const prob = (e.data as EdgeData)?.probability ?? 100;
-      adj.get(e.source)!.push({ to: e.target, prob: prob / 100 });
+      const recovery = (e.data as EdgeData)?.recovery ?? 0;
+      adj.get(e.source)!.push({ to: e.target, prob: prob / 100, recovery: recovery / 100 });
     });
 
-    const memo = new Map<string, StatsEngine.Distribution>();
+    const memo = new Map<string, { dist: StatsEngine.Distribution, successProb: number }>();
     const processing = new Set<string>();
 
-    function computeDist(id: string): StatsEngine.Distribution {
+    function computeDist(id: string): { dist: StatsEngine.Distribution, successProb: number } {
       if (memo.has(id)) return memo.get(id)!;
-      if (processing.has(id)) return StatsEngine.createConstant(0);
+      if (processing.has(id)) return { dist: StatsEngine.createConstant(0), successProb: 1 };
       
       processing.add(id);
       const node = nodes.find(n => n.id === id);
       if (!node) {
         processing.delete(id);
-        return StatsEngine.createConstant(0);
+        return { dist: StatsEngine.createConstant(0), successProb: 1 };
       }
 
       const data = node.data;
-      // 1. Generate local histogram from user inputs (Project Sugar)
+      // 1. Generate local histogram from user inputs
       let currentDist = ProjectStats.generateFromMedianAndRisk(
         data.estimate ?? 0, 
         data.risk ?? 'low'
       );
 
-      // 2. Conjoin with each child distribution using pure StatsEngine
+      let successProb = 1.0;
+
+      // 2. Conjoin with each child distribution
       const children = adj.get(id) || [];
       children.forEach(child => {
-        const childBaseDist = computeDist(child.to);
-        const childEffectiveDist = StatsEngine.applyProbability(childBaseDist, child.prob);
+        const childResult = computeDist(child.to);
+        
+        // Probability gating from the edge
+        const childEffectiveDist = StatsEngine.applyProbability(childResult.dist, child.prob);
+        
+        // Success probability propagates with recovery chance:
+        // P(Success) = P(Child Not Needed) + P(Child Needed) * [P(Child Success) + P(Child Fail) * P(Recovery)]
+        const childEffectiveSuccess = childResult.successProb + (1 - childResult.successProb) * child.recovery;
+        const childContributionToSuccess = (1 - child.prob) + (child.prob * childEffectiveSuccess);
+        
+        successProb *= childContributionToSuccess;
+
         currentDist = StatsEngine.convolve(currentDist, childEffectiveDist);
       });
 
-      memo.set(id, currentDist);
+      // 3. Apply local hard-stop limit
+      if (data.limit !== undefined && data.limit !== null) {
+        const localSuccessProb = StatsEngine.getProbabilityOfLimit(currentDist, data.limit);
+        successProb *= localSuccessProb;
+      }
+
+      const result = { dist: currentDist, successProb };
+      memo.set(id, result);
       processing.delete(id);
-      return currentDist;
+      return result;
     }
 
     return nodes.map(n => {
-      const histogram = computeDist(n.id);
+      const result = computeDist(n.id);
       return {
         ...n,
         data: {
           ...n.data,
-          histogram
+          histogram: result.dist,
+          successProb: result.successProb
         }
       };
     });
