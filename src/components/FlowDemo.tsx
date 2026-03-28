@@ -28,10 +28,13 @@ import { ProjectStats } from '../utils/project-stats'
 
 // --- Types ---
 
+type Priority = 'minor' | 'medium' | 'major' | 'critical';
+
 type NodeData = {
   label: string;
   estimate: number;
   risk: ProjectStats.RiskLevel;
+  priority: Priority;
   limit?: number; // Hard-stop limit
   histogram?: StatsEngine.Distribution;
   successProb?: number; // Probability of completing before hard-stop
@@ -42,12 +45,19 @@ type EdgeData = {
   recovery?: number;
 };
 
-// ... Dagre setup and layout code remains same ...
+const PRIORITY_COLORS: Record<Priority, string> = {
+  minor: 'bg-slate-100 text-slate-600 border-slate-200',
+  medium: 'bg-blue-50 text-blue-600 border-blue-200',
+  major: 'bg-orange-50 text-orange-600 border-orange-200',
+  critical: 'bg-red-50 text-red-600 border-red-200',
+};
+
+// ... Dagre setup and layout code ...
 
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const { setNodes } = useReactFlow()
 
-  const updateNodeData = useCallback((key: keyof NodeData, value: string | number | undefined) => {
+  const updateNodeData = useCallback((key: keyof NodeData, value: any) => {
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === id) {
@@ -65,6 +75,7 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   }, [id, setNodes])
 
   const riskLevels: ProjectStats.RiskLevel[] = ['low', 'medium', 'high', 'extreme'];
+  const priorities: Priority[] = ['minor', 'medium', 'major', 'critical'];
 
   // Extract sugar for presentation from the histogram
   const totals = useMemo(() => 
@@ -73,9 +84,20 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   );
 
   return (
-    <div className="rounded border bg-white p-3 shadow-md min-w-[170px] flex flex-col gap-2">
+    <div className="rounded border bg-white p-3 shadow-md min-w-[180px] flex flex-col gap-2">
       <Handle type="target" position={Position.Top} />
       
+      {/* Priority Badge */}
+      <div className="flex justify-center -mt-1">
+        <select
+          value={data.priority || 'medium'}
+          onChange={(e) => updateNodeData('priority', e.target.value as Priority)}
+          className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border cursor-pointer outline-none appearance-none text-center ${PRIORITY_COLORS[data.priority || 'medium']}`}
+        >
+          {priorities.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+      </div>
+
       {/* Name/Label */}
       <input
         type="text"
@@ -112,8 +134,8 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
         
         <div className="flex flex-col gap-1">
           <div className="flex justify-between items-center">
-            <span className="whitespace-nowrap font-semibold uppercase tracking-wider">Risk Level:</span>
-            <span className="text-blue-600 font-bold capitalize">{data.risk}</span>
+            <span className="whitespace-nowrap font-semibold uppercase tracking-wider text-[9px]">Risk Level:</span>
+            <span className="text-blue-600 font-bold capitalize text-[9px]">{data.risk}</span>
           </div>
           <input
             type="range"
@@ -265,8 +287,8 @@ const edgeTypes = {
 const STORAGE_KEY = 'planning-assistant-graph-v1';
 
 const initialNodes: Node<NodeData>[] = [
-  { id: '1', position: { x: 0, y: 50 }, data: { label: 'Total Project', estimate: 0, risk: 'low' }, type: 'editable' },
-  { id: '2', position: { x: 300, y: 0 }, data: { label: 'Feature A', estimate: 5, risk: 'medium' }, type: 'editable' },
+  { id: '1', position: { x: 0, y: 50 }, data: { label: 'Total Project', estimate: 0, risk: 'low', priority: 'medium' }, type: 'editable' },
+  { id: '2', position: { x: 300, y: 0 }, data: { label: 'Feature A', estimate: 5, risk: 'medium', priority: 'medium' }, type: 'editable' },
 ]
 
 const initialEdges: Edge[] = [
@@ -305,7 +327,7 @@ export default function FlowDemo() {
     return initialEdges;
   })
 
-  const { fitView } = useReactFlow()
+  const { fitView, screenToFlowPosition } = useReactFlow()
 
   // --- Persistence ---
   useMemo(() => {
@@ -424,6 +446,55 @@ export default function FlowDemo() {
     }
   }, [setNodes, setEdges]);
 
+  const addNodeAt = useCallback(
+    (position: { x: number; y: number }) => {
+      setNodes((nds) => {
+        let index = nds.length + 1;
+        while (nds.some((node) => node.id === `n-${index}`)) {
+          index += 1;
+        }
+
+        const newNode: Node<NodeData> = {
+          id: `n-${index}`,
+          position,
+          type: 'editable',
+          data: {
+            label: `Task ${index}`,
+            estimate: 1,
+            risk: 'medium',
+            priority: 'medium',
+          },
+        };
+
+        return [...nds, newNode];
+      });
+    },
+    [setNodes]
+  );
+
+  const onAddNode = useCallback(() => {
+    const center = screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    });
+
+    addNodeAt({
+      x: center.x - 90,
+      y: center.y - 40,
+    });
+  }, [screenToFlowPosition, addNodeAt]);
+
+  const onPaneDoubleClick = useCallback(
+    (event: React.MouseEvent) => {
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      addNodeAt(position);
+    },
+    [screenToFlowPosition, addNodeAt]
+  );
+
   return (
     <div className="h-full w-full overflow-hidden">
       <ReactFlow
@@ -432,6 +503,7 @@ export default function FlowDemo() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onPaneDoubleClick={onPaneDoubleClick}
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
@@ -440,6 +512,12 @@ export default function FlowDemo() {
         <Controls />
         <Background gap={12} size={1} />
         <Panel position="top-right" className="bg-white p-2 rounded shadow-md border flex gap-2">
+          <button
+            onClick={onAddNode}
+            className="px-3 py-1 bg-emerald-500 text-white rounded text-xs font-semibold hover:bg-emerald-600 transition-colors"
+          >
+            Add Node
+          </button>
           <button
             onClick={() => onLayout('TB')}
             className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600 transition-colors"
@@ -463,4 +541,3 @@ export default function FlowDemo() {
     </div>
   )
 }
-
