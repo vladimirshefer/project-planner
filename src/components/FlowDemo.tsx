@@ -30,9 +30,8 @@ import { ProjectStats } from '../utils/project-stats'
 
 type NodeData = {
   label: string;
-  est30?: number;
-  est70?: number;
-  est95?: number;
+  estimate: number;
+  risk: ProjectStats.RiskLevel;
   histogram?: StatsEngine.Distribution;
 };
 
@@ -97,6 +96,8 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
     )
   }, [id, setNodes])
 
+  const riskLevels: ProjectStats.RiskLevel[] = ['low', 'medium', 'high', 'extreme'];
+
   // Extract sugar for presentation from the histogram
   const totals = useMemo(() => 
     data.histogram ? ProjectStats.extractViewMarks(data.histogram) : null,
@@ -116,33 +117,35 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
       />
 
       {/* Estimates Inputs */}
-      <div className="flex flex-col gap-1 text-[10px] text-gray-500 pt-1">
+      <div className="flex flex-col gap-3 text-[10px] text-gray-500 pt-1">
         <div className="flex justify-between items-center gap-2">
-          <span className="whitespace-nowrap">30% (Opt):</span>
+          <span className="whitespace-nowrap font-semibold">Median Est:</span>
           <input
             type="number"
             className="w-16 border rounded px-1 text-right text-xs focus:ring-1 focus:ring-blue-500 outline-none"
-            defaultValue={data.est30}
-            onChange={(e) => updateNodeData('est30', parseFloat(e.target.value) || 0)}
+            defaultValue={data.estimate}
+            onChange={(e) => updateNodeData('estimate', parseFloat(e.target.value) || 0)}
           />
         </div>
-        <div className="flex justify-between items-center gap-2">
-          <span className="whitespace-nowrap">70% (Real):</span>
+        
+        <div className="flex flex-col gap-1">
+          <div className="flex justify-between items-center">
+            <span className="whitespace-nowrap font-semibold uppercase tracking-wider">Risk Level:</span>
+            <span className="text-blue-600 font-bold capitalize">{data.risk}</span>
+          </div>
           <input
-            type="number"
-            className="w-16 border rounded px-1 text-right text-xs focus:ring-1 focus:ring-blue-500 outline-none"
-            defaultValue={data.est70}
-            onChange={(e) => updateNodeData('est70', parseFloat(e.target.value) || 0)}
+            type="range"
+            min="0"
+            max="3"
+            step="1"
+            className="w-full h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+            value={riskLevels.indexOf(data.risk)}
+            onChange={(e) => updateNodeData('risk', riskLevels[parseInt(e.target.value)])}
           />
-        </div>
-        <div className="flex justify-between items-center gap-2">
-          <span className="whitespace-nowrap">95% (Pess):</span>
-          <input
-            type="number"
-            className="w-16 border rounded px-1 text-right text-xs focus:ring-1 focus:ring-blue-500 outline-none"
-            defaultValue={data.est95}
-            onChange={(e) => updateNodeData('est95', parseFloat(e.target.value) || 0)}
-          />
+          <div className="flex justify-between text-[8px] px-0.5 text-gray-400">
+            <span>Low</span>
+            <span>Ext</span>
+          </div>
         </div>
       </div>
 
@@ -150,21 +153,21 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
       {totals && (
         <div className="mt-1 border-t pt-2 flex flex-col gap-1 bg-blue-50/50 -mx-3 px-3 pb-2">
           <div className="flex justify-between items-center font-bold text-xs text-blue-700">
-            <span>Median (50%):</span>
+            <span>Median (P50):</span>
             <span>{totals.p50.toFixed(1)}</span>
           </div>
           <div className="grid grid-cols-3 gap-1 text-[9px] text-blue-500 text-center border-t border-blue-100 pt-1">
-            <div title="30% Project Total" className="flex flex-col">
-              <span className="opacity-60">30%</span>
-              <span className="font-semibold">{totals.p30.toFixed(1)}</span>
+            <div title="80% Confidence Level" className="flex flex-col">
+              <span className="opacity-60">80%</span>
+              <span className="font-semibold">{totals.p80.toFixed(1)}</span>
             </div>
-            <div title="70% Project Total" className="flex flex-col">
-              <span className="opacity-60">70%</span>
-              <span className="font-semibold">{totals.p70.toFixed(1)}</span>
-            </div>
-            <div title="95% Project Total" className="flex flex-col">
+            <div title="95% Confidence Level" className="flex flex-col border-x border-blue-100/50">
               <span className="opacity-60">95%</span>
               <span className="font-semibold">{totals.p95.toFixed(1)}</span>
+            </div>
+            <div title="99% Confidence Level" className="flex flex-col">
+              <span className="opacity-60">99%</span>
+              <span className="font-semibold">{totals.p99.toFixed(1)}</span>
             </div>
           </div>
           <div className="flex justify-between items-center text-[9px] text-blue-400 border-t border-blue-100 pt-1 italic">
@@ -256,9 +259,11 @@ const edgeTypes = {
   editable: EditableEdge,
 }
 
-const initialNodes: Node[] = [
-  { id: '1', position: { x: 0, y: 50 }, data: { label: 'Total Project', est30: 0.5, est70: 0.5, est95: 1 }, type: 'editable' },
-  { id: '2', position: { x: 300, y: 0 }, data: { label: 'Feature A', est30: 1, est70: 5, est95: 10 }, type: 'editable' },
+const STORAGE_KEY = 'planning-assistant-graph-v1';
+
+const initialNodes: Node<NodeData>[] = [
+  { id: '1', position: { x: 0, y: 50 }, data: { label: 'Total Project', estimate: 0, risk: 'low' }, type: 'editable' },
+  { id: '2', position: { x: 300, y: 0 }, data: { label: 'Feature A', estimate: 5, risk: 'medium' }, type: 'editable' },
 ]
 
 const initialEdges: Edge[] = [
@@ -267,15 +272,43 @@ const initialEdges: Edge[] = [
     source: '1', 
     target: '2', 
     type: 'editable',
-    data: { probability: 50 },
+    data: { probability: 100 },
     markerEnd: { type: MarkerType.ArrowClosed } 
   },
 ]
 
 export default function FlowDemo() {
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
+  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved).nodes || initialNodes;
+      } catch (e) {
+        console.error('Failed to parse saved nodes', e);
+      }
+    }
+    return initialNodes;
+  })
+
+  const [edges, setEdges, onEdgesChange] = useEdgesState(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        return JSON.parse(saved).edges || initialEdges;
+      } catch (e) {
+        console.error('Failed to parse saved edges', e);
+      }
+    }
+    return initialEdges;
+  })
+
   const { fitView } = useReactFlow()
+
+  // --- Persistence ---
+  useMemo(() => {
+    const state = { nodes, edges };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }, [nodes, edges]);
 
   // --- Discrete Percentile Engine ---
   const computedNodes = useMemo(() => {
@@ -300,12 +333,11 @@ export default function FlowDemo() {
         return StatsEngine.createConstant(0);
       }
 
-      const data = node.data as NodeData;
+      const data = node.data;
       // 1. Generate local histogram from user inputs (Project Sugar)
-      let currentDist = ProjectStats.generateFromMarks(
-        data.est30 ?? 0, 
-        data.est70 ?? 0, 
-        data.est95 ?? 0
+      let currentDist = ProjectStats.generateFromMedianAndRisk(
+        data.estimate ?? 0, 
+        data.risk ?? 'low'
       );
 
       // 2. Conjoin with each child distribution using pure StatsEngine
@@ -360,6 +392,14 @@ export default function FlowDemo() {
     [nodes, edges, setNodes, setEdges, fitView]
   )
 
+  const onClear = useCallback(() => {
+    if (window.confirm('Are you sure you want to clear the entire project?')) {
+      localStorage.removeItem(STORAGE_KEY);
+      setNodes([]);
+      setEdges([]);
+    }
+  }, [setNodes, setEdges]);
+
   return (
     <div className="h-full w-full overflow-hidden">
       <ReactFlow
@@ -388,8 +428,15 @@ export default function FlowDemo() {
           >
             Tree Layout (H)
           </button>
+          <button
+            onClick={onClear}
+            className="px-3 py-1 border border-red-200 text-red-500 rounded text-xs font-semibold hover:bg-red-50 transition-colors"
+          >
+            Clear
+          </button>
         </Panel>
       </ReactFlow>
     </div>
   )
 }
+

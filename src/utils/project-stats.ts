@@ -2,30 +2,42 @@ import { StatsEngine } from './stats-engine';
 
 /**
  * Project-specific logic for mapping human-provided estimates
- * (30/70/95) into StatsEngine Distributions and back.
+ * (Median + Risk Multiplier) into StatsEngine Distributions and back.
  */
 export namespace ProjectStats {
   
+  export type RiskLevel = 'low' | 'medium' | 'high' | 'extreme';
+
+  export const RISK_MULTIPLIERS: Record<RiskLevel, number> = {
+    low: 1.2,
+    medium: 2,
+    high: 5,
+    extreme: 20,
+  };
+
   /**
-   * Generates a 100-point distribution based on piecewise linear interpolation
-   * of the three user-provided confidence marks.
+   * Generates a 100-point distribution based on:
+   * 0% = estimate * 0.5
+   * 50% = estimate * 1.0
+   * 100% = estimate * riskMultiplier
    */
-  export function generateFromMarks(est30: number, est70: number, est95: number): StatsEngine.Distribution {
+  export function generateFromMedianAndRisk(estimate: number, risk: RiskLevel): StatsEngine.Distribution {
+    const multiplier = RISK_MULTIPLIERS[risk] || 2;
+    const min = estimate * 0.5;
+    const median = estimate;
+    const max = estimate * multiplier;
+
     const samples = new Array(StatsEngine.RESOLUTION);
     for (let i = 0; i < StatsEngine.RESOLUTION; i++) {
       const p = i; 
-      if (p <= 30) {
-        const t = p / 30;
-        samples[i] = (est30 / 2) * (1 - t) + est30 * t;
-      } else if (p <= 70) {
-        const t = (p - 30) / (70 - 30);
-        samples[i] = est30 * (1 - t) + est70 * t;
-      } else if (p <= 95) {
-        const t = (p - 70) / (95 - 70);
-        samples[i] = est70 * (1 - t) + est95 * t;
+      if (p <= 50) {
+        // Linear interpolation from 0 to 50
+        const t = p / 50;
+        samples[i] = min * (1 - t) + median * t;
       } else {
-        const t = (p - 95) / (100 - 95);
-        samples[i] = est95 * (1 - t) + (est95 * 3) * t;
+        // Linear interpolation from 50 to 100
+        const t = (p - 50) / (100 - 50);
+        samples[i] = median * (1 - t) + max * t;
       }
     }
     return samples;
@@ -35,10 +47,10 @@ export namespace ProjectStats {
    * The structure we use to show the final results to the user.
    */
   export interface ViewMarks {
-    p30: number;
     p50: number;
-    p70: number;
+    p80: number;
     p95: number;
+    p99: number;
     ev: number;
   }
 
@@ -47,10 +59,10 @@ export namespace ProjectStats {
    */
   export function extractViewMarks(dist: StatsEngine.Distribution): ViewMarks {
     return {
-      p30: StatsEngine.getPercentile(dist, 30),
       p50: StatsEngine.getPercentile(dist, 50),
-      p70: StatsEngine.getPercentile(dist, 70),
+      p80: StatsEngine.getPercentile(dist, 80),
       p95: StatsEngine.getPercentile(dist, 95),
+      p99: StatsEngine.getPercentile(dist, 99),
       ev: StatsEngine.getMean(dist)
     };
   }
