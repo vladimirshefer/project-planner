@@ -97,7 +97,7 @@ const getLayoutedElements = (
 };
 
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
-  const { setNodes } = useReactFlow()
+  const { setNodes, setEdges } = useReactFlow()
 
   const updateNodeData = useCallback((key: keyof NodeData, value: any) => {
     setNodes((nds) =>
@@ -116,6 +116,11 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
     )
   }, [id, setNodes])
 
+  const deleteNode = useCallback(() => {
+    setNodes((nds) => nds.filter((node) => node.id !== id))
+    setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id))
+  }, [id, setNodes, setEdges])
+
   const riskLevels: ProjectStats.RiskLevel[] = ['low', 'medium', 'high', 'extreme'];
   const priorities: Priority[] = ['minor', 'medium', 'major', 'critical'];
 
@@ -128,6 +133,23 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   return (
     <div className="rounded border bg-white p-3 shadow-md min-w-[180px] flex flex-col gap-2">
       <Handle type="target" position={Position.Top} />
+
+      <div className="flex justify-end -mb-1">
+        <details className="relative">
+          <summary className="list-none cursor-pointer select-none text-xs text-gray-500 px-1.5 py-0.5 rounded hover:bg-gray-100">
+            ...
+          </summary>
+          <div className="absolute right-0 mt-1 bg-white border rounded shadow-md z-10 min-w-[110px]">
+            <button
+              type="button"
+              onClick={deleteNode}
+              className="w-full text-left px-2 py-1.5 text-xs text-red-600 hover:bg-red-50"
+            >
+              Delete node
+            </button>
+          </div>
+        </details>
+      </div>
       
       {/* Priority Badge */}
       <div className="flex justify-center -mt-1">
