@@ -90,7 +90,7 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
           <span className="whitespace-nowrap font-semibold">Median Est:</span>
           <input
             type="number"
-            className="w-16 border rounded px-1 text-right text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+            className="w-16 border rounded px-1 text-right text-xs focus:ring-1 focus:ring-blue-500 outline-none bg-white"
             defaultValue={data.estimate}
             onChange={(e) => updateNodeData('estimate', parseFloat(e.target.value) || 0)}
           />
@@ -101,7 +101,7 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
           <input
             type="number"
             placeholder="No limit"
-            className="w-16 border rounded px-1 text-right text-xs focus:ring-1 focus:ring-red-500 outline-none placeholder:text-gray-300"
+            className="w-16 border rounded px-1 text-right text-xs focus:ring-1 focus:ring-red-500 outline-none placeholder:text-gray-300 bg-white"
             defaultValue={data.limit}
             onChange={(e) => {
               const val = parseFloat(e.target.value);
@@ -227,7 +227,7 @@ function EditableEdge({
                 type="number"
                 defaultValue={data?.probability ?? 100}
                 onChange={(e) => updateEdgeData('probability', parseFloat(e.target.value) || 0)}
-                className="w-7 text-right outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5 text-blue-600 font-bold"
+                className="w-7 text-right outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5 text-blue-600 font-bold bg-white"
                 min="0"
                 max="100"
               />
@@ -241,7 +241,7 @@ function EditableEdge({
                 type="number"
                 defaultValue={data?.recovery ?? 0}
                 onChange={(e) => updateEdgeData('recovery', parseFloat(e.target.value) || 0)}
-                className="w-7 text-right outline-none focus:ring-1 focus:ring-green-400 rounded px-0.5 text-green-600 font-bold"
+                className="w-7 text-right outline-none focus:ring-1 focus:ring-green-400 rounded px-0.5 text-green-600 font-bold bg-white"
                 min="0"
                 max="100"
               />

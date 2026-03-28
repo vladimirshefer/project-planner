@@ -4,7 +4,7 @@
 
 /* App baseline styles */
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 }
 
 html, body, #root {
@@ -13,4 +13,15 @@ html, body, #root {
 
 button {
   cursor: pointer;
+}
+
+/* Hide number input spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
