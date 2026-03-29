@@ -26,6 +26,7 @@ import { StatsEngine } from '../utils/stats-engine'
 import { ProjectStats } from '../utils/project-stats'
 import { EstimationsGraph } from '../utils/estimations-graph'
 import { NodeView } from './NodeView'
+import { collectKnownSkills } from '../utils/skills'
 
 type NodeData = EstimationsGraph.NodeData
 type EdgeData = EstimationsGraph.EdgeData
@@ -35,6 +36,7 @@ const NODE_WIDTH = 220
 const NODE_HEIGHT = 180
 
 const WorkerPoolContext = createContext<EstimationsGraph.WorkerDto[]>([])
+const SkillSuggestionsContext = createContext<string[]>([])
 
 const getNodeSize = (node: Node<NodeData>) => {
   const measuredWidth = node.measured?.width ?? node.width
@@ -91,6 +93,7 @@ const getLayoutedElements = (
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const { setNodes, setEdges } = useReactFlow()
   const workers = useContext(WorkerPoolContext)
+  const skillSuggestions = useContext(SkillSuggestionsContext)
 
   const updateNodeData = useCallback((key: keyof NodeData, value: any) => {
     setNodes((nds) =>
@@ -126,6 +129,7 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
     <NodeView
       data={data}
       workers={workers}
+      skillSuggestions={skillSuggestions}
       priorities={priorities}
       riskLevels={riskLevels}
       totals={totals}
@@ -258,6 +262,10 @@ export default function FlowDemo({
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(bootstrapState.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(bootstrapState.edges)
   const [workers, setWorkers] = useState<EstimationsGraph.WorkerDto[]>(bootstrapState.workers ?? [])
+  const skillSuggestions = useMemo(
+    () => collectKnownSkills({ workers, nodes }),
+    [workers, nodes]
+  )
 
   const { fitView, screenToFlowPosition, setCenter } = useReactFlow()
 
@@ -475,7 +483,8 @@ export default function FlowDemo({
   return (
     <div className="h-full w-full overflow-hidden">
       <WorkerPoolContext.Provider value={workers}>
-        <ReactFlow
+        <SkillSuggestionsContext.Provider value={skillSuggestions}>
+          <ReactFlow
           nodes={computedNodes}
           edges={edges}
           onNodesChange={onNodesChange}
@@ -595,7 +604,8 @@ export default function FlowDemo({
               </div>
             </Panel>
           )}
-        </ReactFlow>
+          </ReactFlow>
+        </SkillSuggestionsContext.Provider>
       </WorkerPoolContext.Provider>
     </div>
   )

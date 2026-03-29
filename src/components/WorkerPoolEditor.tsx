@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 import { EstimationsGraph } from '../utils/estimations-graph'
+import { SkillChipsInput } from './SkillChipsInput'
+import { uniqueSkills } from '../utils/skills'
 
 type WorkerDto = EstimationsGraph.WorkerDto
 const AVAILABILITY_OPTIONS = [0, 25, 50, 75, 100] as const
@@ -7,9 +9,11 @@ const AVAILABILITY_OPTIONS = [0, 25, 50, 75, 100] as const
 export function WorkerPoolEditor({
   workers,
   onChange,
+  suggestions = [],
 }: {
   workers: WorkerDto[]
   onChange: (workers: WorkerDto[]) => void
+  suggestions?: string[]
 }) {
   const [newName, setNewName] = useState('')
   const normalizedWorkers = useMemo(() => workers ?? [], [workers])
@@ -52,6 +56,7 @@ export function WorkerPoolEditor({
         <WorkerCard
           key={worker.id}
           worker={worker}
+          suggestions={suggestions}
           onUpdate={(next) => onChange(normalizedWorkers.map((w) => (w.id === worker.id ? next : w)))}
           onDelete={() => onChange(normalizedWorkers.filter((w) => w.id !== worker.id))}
         />
@@ -62,14 +67,19 @@ export function WorkerPoolEditor({
 
 function WorkerCard({
   worker,
+  suggestions,
   onUpdate,
   onDelete,
 }: {
   worker: WorkerDto
+  suggestions: string[]
   onUpdate: (worker: WorkerDto) => void
   onDelete: () => void
 }) {
-  const [skillInput, setSkillInput] = useState('')
+  const skillSuggestions = useMemo(
+    () => uniqueSkills([...(suggestions ?? []), ...(worker.skills ?? [])]),
+    [suggestions, worker.skills]
+  )
 
   return (
     <div className="bg-white border rounded p-3 flex flex-col gap-2">
@@ -104,43 +114,12 @@ function WorkerCard({
         })}
       </div>
 
-      <div className="flex items-center gap-2">
-        <input
-          value={skillInput}
-          onChange={(e) => setSkillInput(e.target.value)}
-          placeholder="Add skill (e.g. backend)"
-          className="flex-1 border rounded px-2 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-cyan-500"
-        />
-        <button
-          onClick={() => {
-            const normalized = normalizeSkill(skillInput)
-            if (!normalized) return
-            onUpdate({ ...worker, skills: Array.from(new Set([...(worker.skills ?? []), normalized])) })
-            setSkillInput('')
-          }}
-          className="px-2.5 py-1.5 text-xs rounded bg-slate-700 text-white hover:bg-slate-800"
-        >
-          Add skill
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-1">
-        {(worker.skills ?? []).map((skill) => (
-          <span key={skill} className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border bg-sky-50 text-sky-700 border-sky-200">
-            {skill}
-            <button
-              onClick={() => onUpdate({ ...worker, skills: (worker.skills ?? []).filter((s) => s !== skill) })}
-              className="text-red-600"
-            >
-              x
-            </button>
-          </span>
-        ))}
-      </div>
+      <SkillChipsInput
+        value={worker.skills ?? []}
+        suggestions={skillSuggestions}
+        onChange={(skills) => onUpdate({ ...worker, skills })}
+        placeholder="Type skill and press Enter"
+      />
     </div>
   )
-}
-
-function normalizeSkill(skill: string): string {
-  return skill.trim().toLowerCase()
 }

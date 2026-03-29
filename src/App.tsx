@@ -5,6 +5,7 @@ import FlowDemo from './components/FlowDemo'
 import { TimelineView } from './components/TimelineView'
 import { WorkerPoolEditor } from './components/WorkerPoolEditor'
 import { EstimationsGraph } from './utils/estimations-graph'
+import { collectKnownSkills } from './utils/skills'
 
 function LegacyRootRedirect() {
   const [searchParams] = useSearchParams()
@@ -200,7 +201,11 @@ function WorkersPage() {
           </div>
         </div>
 
-        <WorkerPoolEditor workers={project.state.workers ?? []} onChange={onWorkersChange} />
+        <WorkerPoolEditor
+          workers={project.state.workers ?? []}
+          suggestions={collectKnownSkills(project.state)}
+          onChange={onWorkersChange}
+        />
       </div>
     </div>
   )

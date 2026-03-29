@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { EstimationsGraph } from '../utils/estimations-graph'
 import { ProjectStats } from '../utils/project-stats'
+import { SkillChipsInput } from './SkillChipsInput'
+import { skillColorClass, uniqueSkills } from '../utils/skills'
 
 type NodeData = EstimationsGraph.NodeData
 type Priority = EstimationsGraph.Priority
@@ -23,6 +25,7 @@ const RISK_COLORS: Record<ProjectStats.RiskLevel, string> = {
 export function NodeView({
   data,
   workers,
+  skillSuggestions,
   priorities,
   riskLevels,
   totals,
@@ -31,6 +34,7 @@ export function NodeView({
 }: {
   data: NodeData
   workers: EstimationsGraph.WorkerDto[]
+  skillSuggestions: string[]
   priorities: Priority[]
   riskLevels: ProjectStats.RiskLevel[]
   totals: ReturnType<typeof ProjectStats.extractViewMarks> | null
@@ -39,7 +43,6 @@ export function NodeView({
 }) {
   const [isHardStopEnabled, setIsHardStopEnabled] = useState(data.limit !== undefined && data.limit !== null)
   const [isSkillsEnabled, setIsSkillsEnabled] = useState((data.requiredSkills?.length ?? 0) > 0)
-  const [newSkill, setNewSkill] = useState('')
 
   useEffect(() => {
     if (data.limit !== undefined && data.limit !== null) {
@@ -57,6 +60,8 @@ export function NodeView({
   const assignees = workers.filter((worker) => assigneeIds.includes(worker.id))
   const primaryAssignee = assignees[0]
   const primaryInitials = getInitials(primaryAssignee?.name ?? 'Unassigned')
+  const requiredSkills = data.requiredSkills ?? []
+  const skillsForPicker = uniqueSkills([...(skillSuggestions ?? []), ...requiredSkills])
 
   return (
     <div className="rounded border bg-white p-2.5 shadow-md min-w-[180px] flex flex-col gap-2">
@@ -131,41 +136,14 @@ export function NodeView({
             </button>
 
             {isSkillsEnabled && (
-              <div className="px-2 py-1.5 border-b flex flex-col gap-1">
-                <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    value={newSkill}
-                    onChange={(e) => setNewSkill(e.target.value)}
-                    placeholder="e.g. backend"
-                    className="w-full border rounded px-1.5 py-1 text-[10px] focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    className="px-2 py-1 text-[10px] rounded bg-blue-600 text-white"
-                    onClick={() => {
-                      const normalized = newSkill.trim().toLowerCase()
-                      if (!normalized) return
-                      const next = Array.from(new Set([...(data.requiredSkills ?? []), normalized]))
-                      onUpdateData('requiredSkills', next)
-                      setNewSkill('')
-                    }}
-                  >
-                    Add
-                  </button>
-                </div>
-                {(data.requiredSkills ?? []).map((skill) => (
-                  <div key={skill} className="flex items-center justify-between text-[10px] text-gray-700 bg-gray-50 rounded px-1.5 py-1">
-                    <span>{skill}</span>
-                    <button
-                      type="button"
-                      onClick={() => onUpdateData('requiredSkills', (data.requiredSkills ?? []).filter((s) => s !== skill))}
-                      className="text-red-600"
-                    >
-                      x
-                    </button>
-                  </div>
-                ))}
+              <div className="px-2 py-1.5 border-b">
+                <SkillChipsInput
+                  value={requiredSkills}
+                  suggestions={skillsForPicker}
+                  onChange={(skills) => onUpdateData('requiredSkills', skills)}
+                  placeholder="Required skill..."
+                  inputClassName="text-[10px]"
+                />
               </div>
             )}
 
@@ -230,8 +208,8 @@ export function NodeView({
 
         {(data.requiredSkills?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-1">
-            {(data.requiredSkills ?? []).map((skill) => (
-              <span key={skill} className="text-[9px] px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+            {requiredSkills.map((skill) => (
+              <span key={skill} className={`text-[9px] px-1.5 py-0.5 rounded-full border ${skillColorClass(skill)}`}>
                 {skill}
               </span>
             ))}
