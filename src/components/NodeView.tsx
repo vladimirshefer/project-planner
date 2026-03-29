@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Handle, Position } from '@xyflow/react'
 import { EstimationsGraph } from '../utils/estimations-graph'
 import { ProjectStats } from '../utils/project-stats'
@@ -43,6 +43,10 @@ export function NodeView({
 }) {
   const [isHardStopEnabled, setIsHardStopEnabled] = useState(data.limit !== undefined && data.limit !== null)
   const [isSkillsEnabled, setIsSkillsEnabled] = useState((data.requiredSkills?.length ?? 0) > 0)
+  const [isAssigneeOpen, setIsAssigneeOpen] = useState(false)
+  const [isOptionsOpen, setIsOptionsOpen] = useState(false)
+  const assigneeMenuRef = useRef<HTMLDivElement | null>(null)
+  const optionsMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     if (data.limit !== undefined && data.limit !== null) {
@@ -56,6 +60,35 @@ export function NodeView({
     }
   }, [data.requiredSkills])
 
+  useEffect(() => {
+    const onPointerDown = (event: PointerEvent | MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null
+      if (!target) return
+      if (isAssigneeOpen && assigneeMenuRef.current && !assigneeMenuRef.current.contains(target)) {
+        setIsAssigneeOpen(false)
+      }
+      if (isOptionsOpen && optionsMenuRef.current && !optionsMenuRef.current.contains(target)) {
+        setIsOptionsOpen(false)
+      }
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setIsAssigneeOpen(false)
+      setIsOptionsOpen(false)
+    }
+
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('touchstart', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('touchstart', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [isAssigneeOpen, isOptionsOpen])
+
   const assigneeIds = data.assigneeIds ?? []
   const assignees = workers.filter((worker) => assigneeIds.includes(worker.id))
   const primaryAssignee = assignees[0]
@@ -68,94 +101,119 @@ export function NodeView({
       <Handle type="target" position={Position.Top} />
 
       <div className="flex items-center justify-between -mb-1">
-        <details className="relative">
-          <summary className="list-none cursor-pointer select-none rounded-full">
+        <div className="relative" ref={assigneeMenuRef}>
+          <button
+            type="button"
+            aria-expanded={isAssigneeOpen}
+            onClick={() => {
+              setIsAssigneeOpen((open) => !open)
+              setIsOptionsOpen(false)
+            }}
+            className="cursor-pointer select-none rounded-full"
+          >
             <span className="flex h-6 w-6 items-center justify-center rounded-full border text-[10px] font-semibold text-gray-700 bg-gray-50">
               {primaryInitials}
             </span>
-          </summary>
-          <div className="absolute left-0 mt-1 bg-white border rounded shadow-md z-10 min-w-[180px] max-h-[180px] overflow-auto p-1">
-            {workers.length === 0 && (
-              <div className="px-2 py-1.5 text-xs text-gray-500">No workers</div>
-            )}
-            {workers.map((worker) => {
-              const checked = assigneeIds.includes(worker.id)
-              return (
-                <label key={worker.id} className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => {
-                      const next = e.target.checked
-                        ? [...assigneeIds, worker.id]
-                        : assigneeIds.filter((id) => id !== worker.id)
-                      onUpdateData('assigneeIds', Array.from(new Set(next)))
-                    }}
-                  />
-                  <span className="truncate">{worker.name}</span>
-                </label>
-              )
-            })}
-          </div>
-        </details>
+          </button>
+          {isAssigneeOpen && (
+            <div className="absolute left-0 mt-1 bg-white border rounded shadow-md z-10 min-w-[180px] max-h-[180px] overflow-auto p-1">
+              {workers.length === 0 && (
+                <div className="px-2 py-1.5 text-xs text-gray-500">No workers</div>
+              )}
+              {workers.map((worker) => {
+                const checked = assigneeIds.includes(worker.id)
+                return (
+                  <label key={worker.id} className="flex items-center gap-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 rounded cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                          ? [...assigneeIds, worker.id]
+                          : assigneeIds.filter((id) => id !== worker.id)
+                        onUpdateData('assigneeIds', Array.from(new Set(next)))
+                      }}
+                    />
+                    <span className="truncate">{worker.name}</span>
+                  </label>
+                )
+              })}
+            </div>
+          )}
+        </div>
 
-        <details className="relative">
-          <summary className="list-none cursor-pointer select-none text-xs text-gray-500 px-1.5 py-0.5 rounded hover:bg-gray-100">
+        <div className="relative" ref={optionsMenuRef}>
+          <button
+            type="button"
+            aria-expanded={isOptionsOpen}
+            onClick={() => {
+              setIsOptionsOpen((open) => !open)
+              setIsAssigneeOpen(false)
+            }}
+            className="list-none cursor-pointer select-none text-xs text-gray-500 px-1.5 py-0.5 rounded hover:bg-gray-100"
+          >
             ...
-          </summary>
-          <div className="absolute right-0 mt-1 bg-white border rounded shadow-md z-10 min-w-[190px] p-1">
-            <button
-              type="button"
-              onClick={() => {
-                if (isHardStopEnabled) {
-                  onUpdateData('limit', undefined)
-                  setIsHardStopEnabled(false)
-                  return
-                }
-                setIsHardStopEnabled(true)
-              }}
-              className="w-full text-left px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 border-b"
-            >
-              {isHardStopEnabled ? 'Disable hard stop' : 'Enable hard stop'}
-            </button>
+          </button>
+          {isOptionsOpen && (
+            <div className="absolute right-0 mt-1 bg-white border rounded shadow-md z-10 min-w-[190px] p-1">
+              <button
+                type="button"
+                onClick={() => {
+                  if (isHardStopEnabled) {
+                    onUpdateData('limit', undefined)
+                    setIsHardStopEnabled(false)
+                  } else {
+                    setIsHardStopEnabled(true)
+                  }
+                  setIsOptionsOpen(false)
+                }}
+                className="w-full text-left px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 border-b"
+              >
+                {isHardStopEnabled ? 'Disable hard stop' : 'Enable hard stop'}
+              </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (isSkillsEnabled) {
-                  onUpdateData('requiredSkills', [])
-                  setIsSkillsEnabled(false)
-                  return
-                }
-                setIsSkillsEnabled(true)
-                onUpdateData('requiredSkills', data.requiredSkills ?? [])
-              }}
-              className="w-full text-left px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 border-b"
-            >
-              {isSkillsEnabled ? 'Disable required skills' : 'Add required skill'}
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (isSkillsEnabled) {
+                    onUpdateData('requiredSkills', [])
+                    setIsSkillsEnabled(false)
+                    setIsOptionsOpen(false)
+                    return
+                  }
+                  setIsSkillsEnabled(true)
+                  onUpdateData('requiredSkills', data.requiredSkills ?? [])
+                }}
+                className="w-full text-left px-2 py-1.5 text-xs text-gray-700 hover:bg-gray-50 border-b"
+              >
+                {isSkillsEnabled ? 'Disable required skills' : 'Add required skill'}
+              </button>
 
-            {isSkillsEnabled && (
-              <div className="px-2 py-1.5 border-b">
-                <SkillChipsInput
-                  value={requiredSkills}
-                  suggestions={skillsForPicker}
-                  onChange={(skills) => onUpdateData('requiredSkills', skills)}
-                  placeholder="Required skill..."
-                  inputClassName="text-[10px]"
-                />
-              </div>
-            )}
+              {isSkillsEnabled && (
+                <div className="px-2 py-1.5 border-b">
+                  <SkillChipsInput
+                    value={requiredSkills}
+                    suggestions={skillsForPicker}
+                    onChange={(skills) => onUpdateData('requiredSkills', skills)}
+                    placeholder="Required skill..."
+                    inputClassName="text-[10px]"
+                  />
+                </div>
+              )}
 
-            <button
-              type="button"
-              onClick={onDeleteNode}
-              className="w-full text-left px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
-            >
-              Delete node
-            </button>
-          </div>
-        </details>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsOptionsOpen(false)
+                  onDeleteNode()
+                }}
+                className="w-full text-left px-2 py-1.5 text-xs text-red-600 hover:bg-red-50 rounded"
+              >
+                Delete node
+              </button>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex justify-center -mt-1">
