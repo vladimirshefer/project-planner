@@ -47,6 +47,8 @@ export namespace TimelineScheduler {
     nodes.forEach((node) => deps.set(node.id, []))
     edges.forEach((edge) => {
       if (!nodeById.has(edge.source) || !nodeById.has(edge.target)) return
+      const kind = edge.data?.kind ?? 'contains'
+      if (kind !== 'after') return
       const current = deps.get(edge.source)
       if (!current) return
       current.push(edge.target)

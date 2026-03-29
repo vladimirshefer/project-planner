@@ -161,7 +161,7 @@ function EditableEdge({
   })
 
   const updateEdgeData = useCallback(
-    (key: keyof EdgeData, val: number) => {
+    (key: keyof EdgeData, val: number | EdgeData['kind']) => {
       setEdges((eds) =>
         eds.map((edge) => {
           if (edge.id === id) {
@@ -184,6 +184,9 @@ function EditableEdge({
     <>
       <BaseEdge path={edgePath} markerEnd={markerEnd} />
       <EdgeLabelRenderer>
+        {(() => {
+          const kind = data?.kind ?? 'contains'
+          return (
         <div
           style={{
             position: 'absolute',
@@ -193,34 +196,51 @@ function EditableEdge({
           className="bg-white p-1 rounded border border-blue-200 shadow-md flex flex-col gap-1 text-[8px] min-w-[60px]"
         >
           <div className="flex items-center justify-between gap-1 border-b pb-1">
-            <span className="text-gray-400 font-semibold uppercase">Occur:</span>
-            <div className="flex items-center">
-              <input
-                type="number"
-                defaultValue={data?.probability ?? 100}
-                onChange={(e) => updateEdgeData('probability', parseFloat(e.target.value) || 0)}
-                className="w-7 text-right outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5 text-blue-600 font-bold bg-white"
-                min="0"
-                max="100"
-              />
-              <span className="text-blue-400 font-bold">%</span>
-            </div>
+            <span className="text-gray-400 font-semibold uppercase">Type:</span>
+            <select
+              value={kind}
+              onChange={(e) => updateEdgeData('kind', e.target.value as EdgeData['kind'])}
+              className="text-[8px] border rounded px-1 py-0.5 bg-white text-gray-700"
+            >
+              <option value="contains">contains</option>
+              <option value="after">after</option>
+            </select>
           </div>
-          <div className="flex items-center justify-between gap-1" title="Chance to still succeed if this dependency fails">
-            <span className="text-gray-400 font-semibold uppercase">Recov:</span>
-            <div className="flex items-center">
-              <input
-                type="number"
-                defaultValue={data?.recovery ?? 0}
-                onChange={(e) => updateEdgeData('recovery', parseFloat(e.target.value) || 0)}
-                className="w-7 text-right outline-none focus:ring-1 focus:ring-green-400 rounded px-0.5 text-green-600 font-bold bg-white"
-                min="0"
-                max="100"
-              />
-              <span className="text-green-400 font-bold">%</span>
-            </div>
-          </div>
+          {kind === 'contains' && (
+            <>
+              <div className="flex items-center justify-between gap-1 border-b pb-1">
+                <span className="text-gray-400 font-semibold uppercase">Occur:</span>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    defaultValue={data?.probability ?? 100}
+                    onChange={(e) => updateEdgeData('probability', parseFloat(e.target.value) || 0)}
+                    className="w-7 text-right outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5 text-blue-600 font-bold bg-white"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="text-blue-400 font-bold">%</span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-1" title="Chance to still succeed if this dependency fails">
+                <span className="text-gray-400 font-semibold uppercase">Recov:</span>
+                <div className="flex items-center">
+                  <input
+                    type="number"
+                    defaultValue={data?.recovery ?? 0}
+                    onChange={(e) => updateEdgeData('recovery', parseFloat(e.target.value) || 0)}
+                    className="w-7 text-right outline-none focus:ring-1 focus:ring-green-400 rounded px-0.5 text-green-600 font-bold bg-white"
+                    min="0"
+                    max="100"
+                  />
+                  <span className="text-green-400 font-bold">%</span>
+                </div>
+              </div>
+            </>
+          )}
         </div>
+          )
+        })()}
       </EdgeLabelRenderer>
     </>
   )
@@ -256,6 +276,7 @@ export default function FlowDemo({
   const [modalMode, setModalMode] = useState<'export' | 'import' | null>(null)
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
+  const [importReport, setImportReport] = useState<EstimationsGraph.ImportReport | null>(null)
 
   const fallbackState = useMemo(() => EstimationsGraph.loadFromStorage(), [])
   const bootstrapState = initialState ?? fallbackState
@@ -287,6 +308,8 @@ export default function FlowDemo({
   const computedNodes = useMemo(() => {
     const adj = new Map<string, Array<{ to: string; prob: number; recovery: number }>>()
     edges.forEach((e) => {
+      const kind = (e.data as EdgeData | undefined)?.kind ?? 'contains'
+      if (kind !== 'contains') return
       if (!adj.has(e.source)) adj.set(e.source, [])
       const prob = (e.data as EdgeData)?.probability ?? 100
       const recovery = (e.data as EdgeData)?.recovery ?? 0
@@ -352,7 +375,7 @@ export default function FlowDemo({
         {
           ...connection,
           type: 'editable',
-          data: { probability: 100 },
+          data: { kind: 'contains', probability: 100, recovery: 0 },
           markerEnd: { type: MarkerType.ArrowClosed },
         },
         eds
@@ -382,14 +405,16 @@ export default function FlowDemo({
   }, [setNodes, setEdges])
 
   const openExportModal = useCallback(() => {
-    setModalText(EstimationsGraph.serialize({ nodes, edges, workers }))
+    setModalText(EstimationsGraph.serializeText({ nodes, edges, workers }))
     setImportError('')
+    setImportReport(null)
     setModalMode('export')
   }, [nodes, edges, workers])
 
   const openImportModal = useCallback(() => {
     setModalText('')
     setImportError('')
+    setImportReport(null)
     setModalMode('import')
   }, [])
 
@@ -400,17 +425,18 @@ export default function FlowDemo({
 
   const onImportApply = useCallback(() => {
     try {
-      const parsed = EstimationsGraph.deserialize(modalText)
-      setNodes(parsed.nodes as Node<NodeData>[])
-      setEdges(parsed.edges as Edge[])
-      setWorkers(parsed.workers ?? [])
+      const result = EstimationsGraph.deserializeText(modalText)
+      setNodes(result.state.nodes as Node<NodeData>[])
+      setEdges(result.state.edges as Edge[])
+      setWorkers(result.state.workers ?? [])
+      setImportReport(result.report)
       setModalMode(null)
       setImportError('')
     } catch (e) {
       if (e instanceof Error) {
         setImportError(e.message)
       } else {
-        setImportError('Invalid JSON.')
+        setImportError('Invalid YAML.')
       }
     }
   }, [modalText, setNodes, setEdges])
@@ -419,12 +445,12 @@ export default function FlowDemo({
     (position: { x: number; y: number }) => {
       setNodes((nds) => {
         let index = nds.length + 1
-        while (nds.some((node) => node.id === `n-${index}`)) {
+        while (nds.some((node) => node.id === `I-${index}`)) {
           index += 1
         }
 
         const newNode: Node<NodeData> = {
-          id: `n-${index}`,
+          id: `I-${index}`,
           position,
           type: 'editable',
           data: {
@@ -573,7 +599,7 @@ export default function FlowDemo({
                 <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold text-gray-800">
-                      {modalMode === 'export' ? 'Export Graph JSON' : 'Import Graph JSON'}
+                      {modalMode === 'export' ? 'Export Project YAML' : 'Import Project YAML'}
                     </h3>
                     <button
                       onClick={closeModal}
@@ -587,7 +613,7 @@ export default function FlowDemo({
                     onChange={(e) => setModalText(e.target.value)}
                     readOnly={modalMode === 'export'}
                     className="w-full min-h-[320px] border rounded p-2 text-xs font-mono text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder='Paste JSON like {"nodes":[...], "edges":[...], "workers":[...]}'
+                    placeholder={'Paste YAML like:\nversion: 1\nitems:\n  - name: "Item A"'}
                   />
                   {importError && <p className="text-xs text-red-600">{importError}</p>}
                   <div className="flex justify-end gap-2">
@@ -598,6 +624,40 @@ export default function FlowDemo({
                       >
                         Apply Import
                       </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </Panel>
+          )}
+          {importReport && (
+            <Panel position="top-left" className="!left-0 !top-0 !m-0 !p-0">
+              <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
+                <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold text-gray-800">Import Report</h3>
+                    <button
+                      onClick={() => setImportReport(null)}
+                      className="px-2 py-1 text-xs rounded border text-gray-600 hover:bg-gray-50"
+                    >
+                      Close
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs text-gray-700">
+                    <p>Items: <span className="font-semibold">{importReport.importedItems}</span></p>
+                    <p>Workers: <span className="font-semibold">{importReport.importedWorkers}</span></p>
+                    <p>Relations: <span className="font-semibold">{importReport.importedRelations}</span></p>
+                    <p>Normalized: <span className="font-semibold">{importReport.normalizedValues}</span></p>
+                    <p>Skipped rels: <span className="font-semibold">{importReport.skippedRelations}</span></p>
+                    <p>Renamed: <span className="font-semibold">{importReport.renamedItems}</span></p>
+                  </div>
+                  <div className="max-h-[280px] overflow-auto border rounded p-2 text-xs text-gray-700 font-mono bg-gray-50">
+                    {importReport.warnings.length === 0 ? (
+                      <p>No warnings.</p>
+                    ) : (
+                      importReport.warnings.map((warning, idx) => (
+                        <p key={`${warning}-${idx}`}>- {warning}</p>
+                      ))
                     )}
                   </div>
                 </div>
