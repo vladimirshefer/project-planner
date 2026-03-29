@@ -233,6 +233,7 @@ const edgeTypes = {
 type FlowDemoProps = {
   initialState?: EstimationsGraph.GraphState
   activeProjectName?: string | null
+  focusNodeId?: string | null
   onSaveProject?: (name: string, state: EstimationsGraph.GraphState) => void
   onOpenProjects?: () => void
   onOpenWorkers?: () => void
@@ -242,6 +243,7 @@ type FlowDemoProps = {
 export default function FlowDemo({
   initialState,
   activeProjectName,
+  focusNodeId,
   onSaveProject,
   onOpenProjects,
   onOpenWorkers,
@@ -257,11 +259,22 @@ export default function FlowDemo({
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(bootstrapState.edges)
   const [workers, setWorkers] = useState<EstimationsGraph.WorkerDto[]>(bootstrapState.workers ?? [])
 
-  const { fitView, screenToFlowPosition } = useReactFlow()
+  const { fitView, screenToFlowPosition, setCenter } = useReactFlow()
 
   useEffect(() => {
     EstimationsGraph.saveToStorage({ nodes, edges, workers })
   }, [nodes, edges, workers])
+
+  useEffect(() => {
+    if (!focusNodeId) return
+    const target = nodes.find((node) => node.id === focusNodeId)
+    if (!target) return
+    const x = target.position.x + getNodeSize(target).width / 2
+    const y = target.position.y + getNodeSize(target).height / 2
+    window.requestAnimationFrame(() => {
+      setCenter(x, y, { zoom: 1.2, duration: 300 })
+    })
+  }, [focusNodeId, nodes, setCenter])
 
   const computedNodes = useMemo(() => {
     const adj = new Map<string, Array<{ to: string; prob: number; recovery: number }>>()

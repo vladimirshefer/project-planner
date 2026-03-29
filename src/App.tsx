@@ -9,15 +9,15 @@ import { EstimationsGraph } from './utils/estimations-graph'
 function LegacyRootRedirect() {
   const [searchParams] = useSearchParams()
   const projectId = searchParams.get('projectId')
-  if (projectId) {
-    return <Navigate to={`/projects/${projectId}`} replace />
-  }
+  if (projectId) return <Navigate to={`/projects/${projectId}`} replace />
   return <Navigate to="/projects" replace />
 }
 
 function EditorPage() {
   const navigate = useNavigate()
   const { projectId = 'new' } = useParams()
+  const [searchParams] = useSearchParams()
+  const focusNodeId = searchParams.get('focusNodeId')
 
   const isNew = projectId === 'new'
   const loadedProject = useMemo(() => {
@@ -27,9 +27,7 @@ function EditorPage() {
 
   const [activeProjectId, setActiveProjectId] = useState<string | null>(loadedProject?.id ?? null)
   const [activeProjectName, setActiveProjectName] = useState<string | null>(loadedProject?.name ?? null)
-  const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() =>
-    loadedProject?.state ?? EstimationsGraph.loadFromStorage()
-  )
+  const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() => loadedProject?.state ?? EstimationsGraph.loadFromStorage())
   const [editorVersion, setEditorVersion] = useState(0)
 
   useEffect(() => {
@@ -40,7 +38,6 @@ function EditorPage() {
       setEditorVersion((v) => v + 1)
       return
     }
-
     if (!loadedProject) return
     setActiveProjectId(loadedProject.id)
     setActiveProjectName(loadedProject.name)
@@ -48,30 +45,20 @@ function EditorPage() {
     setEditorVersion((v) => v + 1)
   }, [isNew, loadedProject])
 
-  const onSaveProject = useCallback(
-    (name: string, state: EstimationsGraph.GraphState) => {
-      const saved = EstimationsGraph.saveProject({
-        id: activeProjectId ?? undefined,
-        name,
-        state,
-      })
-      setActiveProjectId(saved.id)
-      setActiveProjectName(saved.name)
-      navigate(`/projects/${saved.id}`, { replace: true })
-    },
-    [activeProjectId, navigate]
-  )
+  const onSaveProject = useCallback((name: string, state: EstimationsGraph.GraphState) => {
+    const saved = EstimationsGraph.saveProject({
+      id: activeProjectId ?? undefined,
+      name,
+      state,
+    })
+    setActiveProjectId(saved.id)
+    setActiveProjectName(saved.name)
+    navigate(`/projects/${saved.id}`, { replace: true })
+  }, [activeProjectId, navigate])
 
   if (!isNew && !loadedProject) {
     return (
-      <div className="h-screen w-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white border rounded p-6 text-sm text-gray-600 flex flex-col gap-3">
-          <p>Project not found.</p>
-          <Link to="/projects" className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white text-center">
-            Back to Projects
-          </Link>
-        </div>
-      </div>
+      <MissingProject />
     )
   }
 
@@ -81,9 +68,7 @@ function EditorPage() {
         <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border shadow-sm pointer-events-auto">
           <h1 className="text-xl font-bold text-gray-800">Planning Assistant</h1>
           <p className="text-xs text-gray-500">Tree-based planning with probabilistic estimates</p>
-          <p className="text-[10px] text-gray-500 mt-1">
-            Active project: {activeProjectName ?? 'Unsaved Draft'}
-          </p>
+          <p className="text-[10px] text-gray-500 mt-1">Active project: {activeProjectName ?? 'Unsaved Draft'}</p>
         </div>
       </header>
 
@@ -93,6 +78,7 @@ function EditorPage() {
             key={`${activeProjectId ?? 'draft'}-${editorVersion}`}
             initialState={editorState}
             activeProjectName={activeProjectName}
+            focusNodeId={focusNodeId}
             onSaveProject={onSaveProject}
             onOpenProjects={() => navigate('/projects')}
             onOpenWorkers={activeProjectId ? () => navigate(`/projects/${activeProjectId}/workers`) : undefined}
@@ -112,11 +98,7 @@ function ProjectsPage() {
   const filteredProjects = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return projects
-
-    return projects.filter((project) => {
-      if (project.name.toLowerCase().includes(q)) return true
-      return project.tickets.some((ticket) => ticket.toLowerCase().includes(q))
-    })
+    return projects.filter((project) => project.name.toLowerCase().includes(q) || project.tickets.some((ticket) => ticket.toLowerCase().includes(q)))
   }, [projects, search])
 
   return (
@@ -141,21 +123,15 @@ function ProjectsPage() {
 
         <div className="flex flex-col gap-3">
           {filteredProjects.length === 0 && (
-            <div className="bg-white border rounded p-4 text-sm text-gray-500">
-              No projects found.
-            </div>
+            <div className="bg-white border rounded p-4 text-sm text-gray-500">No projects found.</div>
           )}
 
           {filteredProjects.map((project) => (
             <div key={project.id} className="bg-white border rounded p-4 flex items-center justify-between gap-4">
               <div className="min-w-0">
                 <h2 className="text-base font-semibold text-gray-800 truncate">{project.name}</h2>
-                <p className="text-xs text-gray-500">
-                  Updated: {new Date(project.updatedAt).toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 truncate">
-                  Tickets: {project.tickets.slice(0, 6).join(', ') || 'None'}
-                </p>
+                <p className="text-xs text-gray-500">Updated: {new Date(project.updatedAt).toLocaleString()}</p>
+                <p className="text-xs text-gray-500 truncate">Tickets: {project.tickets.slice(0, 6).join(', ') || 'None'}</p>
               </div>
               <button
                 onClick={() => navigate(`/projects/${project.id}`)}
@@ -174,7 +150,6 @@ function ProjectsPage() {
 function WorkersPage() {
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
-
   const initialProject = useMemo(() => EstimationsGraph.getProjectById(projectId), [projectId])
   const [project, setProject] = useState(initialProject)
 
@@ -182,18 +157,7 @@ function WorkersPage() {
     setProject(initialProject)
   }, [initialProject])
 
-  if (!project) {
-    return (
-      <div className="h-screen w-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white border rounded p-6 text-sm text-gray-600 flex flex-col gap-3">
-          <p>Project not found.</p>
-          <Link to="/projects" className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white text-center">
-            Back to Projects
-          </Link>
-        </div>
-      </div>
-    )
-  }
+  if (!project) return <MissingProject />
 
   const onWorkersChange = (workers: EstimationsGraph.WorkerDto[]) => {
     const validIds = new Set(workers.map((worker) => worker.id))
@@ -211,12 +175,7 @@ function WorkersPage() {
       nodes: nextNodes,
     }
 
-    const saved = EstimationsGraph.saveProject({
-      id: project.id,
-      name: project.name,
-      state: nextState,
-    })
-
+    const saved = EstimationsGraph.saveProject({ id: project.id, name: project.name, state: nextState })
     setProject(saved)
   }
 
@@ -252,18 +211,7 @@ function TimelinePage() {
   const { projectId = '' } = useParams()
   const project = useMemo(() => EstimationsGraph.getProjectById(projectId), [projectId])
 
-  if (!project) {
-    return (
-      <div className="h-screen w-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white border rounded p-6 text-sm text-gray-600 flex flex-col gap-3">
-          <p>Project not found.</p>
-          <Link to="/projects" className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white text-center">
-            Back to Projects
-          </Link>
-        </div>
-      </div>
-    )
-  }
+  if (!project) return <MissingProject />
 
   return (
     <div className="h-screen w-screen bg-gray-50 overflow-auto">
@@ -286,7 +234,23 @@ function TimelinePage() {
           </div>
         </div>
 
-        <TimelineView state={project.state} />
+        <TimelineView
+          state={project.state}
+          onTaskClick={(nodeId) => navigate(`/projects/${project.id}?focusNodeId=${nodeId}`)}
+        />
+      </div>
+    </div>
+  )
+}
+
+function MissingProject() {
+  return (
+    <div className="h-screen w-screen bg-gray-50 flex items-center justify-center">
+      <div className="bg-white border rounded p-6 text-sm text-gray-600 flex flex-col gap-3">
+        <p>Project not found.</p>
+        <Link to="/projects" className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white text-center">
+          Back to Projects
+        </Link>
       </div>
     </div>
   )
