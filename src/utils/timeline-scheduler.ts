@@ -16,15 +16,24 @@ export namespace TimelineScheduler {
     reason?: string
   }
 
+  export type Blocker = {
+    laneId: string
+    start: number
+    end: number
+    reason: 'unavailable'
+  }
+
   export type Result = {
     lanes: Lane[]
     tasks: Task[]
+    blockers: Blocker[]
     totalDuration: number
   }
 
   type LaneState = {
     lane: Lane
     freeAt: number
+    availabilityPercent: number
   }
 
   export function build(state: EstimationsGraph.GraphState): Result {
@@ -48,6 +57,7 @@ export namespace TimelineScheduler {
       workerLanes.set(worker.id, {
         lane: { id: `worker:${worker.id}`, label: worker.name, kind: 'worker' },
         freeAt: 0,
+        availabilityPercent: normalizeAvailability(worker.availabilityPercent),
       })
     })
 
@@ -59,12 +69,14 @@ export namespace TimelineScheduler {
       const created: LaneState = {
         lane: { id: laneId, label: `Missing worker ${reason}`, kind: 'virtual' },
         freeAt: 0,
+        availabilityPercent: 100,
       }
       virtualLanes.set(laneId, created)
       return created
     }
 
     const memo = new Map<string, Task>()
+    const blockers: Blocker[] = []
     const visiting = new Set<string>()
 
     const pickLane = (node: EstimationsGraph.GraphNode, earliestStart: number): { lane: LaneState; reason?: string } => {
@@ -75,19 +87,25 @@ export namespace TimelineScheduler {
       let missReason: string | undefined
 
       if (assigneeIds.length > 0) {
-        candidates = assigneeIds
+        const assigned = assigneeIds
           .map((id) => workerLanes.get(id))
           .filter((lane): lane is LaneState => Boolean(lane))
-        if (candidates.length === 0) missReason = 'assignee'
+        candidates = assigned.filter((lane) => lane.availabilityPercent > 0)
+        if (assigned.length > 0 && candidates.length === 0) missReason = 'unavailable'
+        if (assigned.length === 0) missReason = 'assignee'
       } else if (requiredSkills.length > 0) {
-        candidates = workers
+        const skilled = workers
           .filter((worker) => worker.skills.some((skill) => requiredSkills.includes(normalizeSkill(skill))))
           .map((worker) => workerLanes.get(worker.id))
           .filter((lane): lane is LaneState => Boolean(lane))
-        if (candidates.length === 0) missReason = requiredSkills[0]
+        candidates = skilled.filter((lane) => lane.availabilityPercent > 0)
+        if (skilled.length > 0 && candidates.length === 0) missReason = 'unavailable'
+        if (skilled.length === 0) missReason = requiredSkills[0]
       } else {
-        candidates = Array.from(workerLanes.values())
-        if (candidates.length === 0) missReason = 'unassigned'
+        const availableWorkers = Array.from(workerLanes.values())
+        candidates = availableWorkers.filter((lane) => lane.availabilityPercent > 0)
+        if (availableWorkers.length > 0 && candidates.length === 0) missReason = 'unavailable'
+        if (availableWorkers.length === 0) missReason = 'unassigned'
       }
 
       if (candidates.length === 0) {
@@ -148,7 +166,16 @@ export namespace TimelineScheduler {
       const laneSelection = pickLane(node, depsEnd)
       const start = Math.max(depsEnd, laneSelection.lane.freeAt)
       const end = start + duration
-      laneSelection.lane.freeAt = end
+      const blocked = getBlockedDuration(duration, laneSelection.lane.availabilityPercent)
+      laneSelection.lane.freeAt = end + blocked
+      if (blocked > 0 && laneSelection.lane.lane.kind === 'worker') {
+        blockers.push({
+          laneId: laneSelection.lane.lane.id,
+          start: end,
+          end: end + blocked,
+          reason: 'unavailable',
+        })
+      }
 
       const task: Task = {
         nodeId: node.id,
@@ -172,12 +199,26 @@ export namespace TimelineScheduler {
       ...Array.from(workerLanes.values()).map((s) => s.lane),
       ...Array.from(virtualLanes.values()).map((s) => s.lane),
     ]
-    const totalDuration = tasks.reduce((max, task) => Math.max(max, task.end), 0)
+    const totalDuration = [...tasks.map((task) => task.end), ...blockers.map((blocker) => blocker.end)].reduce(
+      (max, end) => Math.max(max, end),
+      0
+    )
 
-    return { lanes, tasks, totalDuration }
+    return { lanes, tasks, blockers, totalDuration }
   }
 
   function normalizeSkill(skill: string): string {
     return skill.trim().toLowerCase()
+  }
+
+  function normalizeAvailability(availabilityPercent: number | undefined): number {
+    if (typeof availabilityPercent !== 'number' || !Number.isFinite(availabilityPercent)) return 100
+    return Math.max(0, Math.min(100, Math.round(availabilityPercent)))
+  }
+
+  function getBlockedDuration(duration: number, availabilityPercent: number): number {
+    if (duration <= 0 || availabilityPercent >= 100) return 0
+    if (availabilityPercent <= 0) return 0
+    return duration * (100 / availabilityPercent - 1)
   }
 }

@@ -24,6 +24,9 @@ export function TimelineView({
           const tasks = timeline.tasks
             .filter((task) => task.laneId === lane.id)
             .sort((a, b) => a.start - b.start)
+          const blockers = timeline.blockers
+            .filter((blocker) => blocker.laneId === lane.id)
+            .sort((a, b) => a.start - b.start)
 
           return (
             <div key={lane.id} className="border-b last:border-b-0 py-3">
@@ -31,6 +34,18 @@ export function TimelineView({
                 {lane.label}
               </div>
               <div className="relative h-12 rounded bg-slate-50 border">
+                {blockers.map((blocker, idx) => {
+                  const left = blocker.start * pxPerUnit
+                  const width = Math.max(8, (blocker.end - blocker.start) * pxPerUnit)
+                  return (
+                    <div
+                      key={`${lane.id}-blocker-${idx}`}
+                      className="absolute top-1.5 h-9 rounded border border-slate-300 bg-slate-200/90"
+                      style={{ left: `${left}px`, width: `${width}px` }}
+                      title="Unavailable"
+                    />
+                  )
+                })}
                 {tasks.map((task) => {
                   const left = task.start * pxPerUnit
                   const width = Math.max(8, (task.end - task.start) * pxPerUnit)

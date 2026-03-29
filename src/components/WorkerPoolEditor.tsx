@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { EstimationsGraph } from '../utils/estimations-graph'
 
 type WorkerDto = EstimationsGraph.WorkerDto
+const AVAILABILITY_OPTIONS = [0, 25, 50, 75, 100] as const
 
 export function WorkerPoolEditor({
   workers,
@@ -30,6 +31,7 @@ export function WorkerPoolEditor({
               id: `w-${Date.now()}-${Math.floor(Math.random() * 10000)}`,
               name,
               skills: [],
+              availabilityPercent: 100,
             }
             onChange([worker, ...normalizedWorkers])
             setNewName('')
@@ -83,6 +85,23 @@ function WorkerCard({
         >
           Delete
         </button>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-gray-500">Availability</span>
+        {AVAILABILITY_OPTIONS.map((option) => {
+          const active = (worker.availabilityPercent ?? 100) === option
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => onUpdate({ ...worker, availabilityPercent: option })}
+              className={`px-2 py-0.5 text-xs rounded-full border ${active ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'}`}
+            >
+              {option}%
+            </button>
+          )
+        })}
       </div>
 
       <div className="flex items-center gap-2">

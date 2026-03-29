@@ -24,6 +24,7 @@ export namespace EstimationsGraph {
     id: string
     name: string
     skills: string[]
+    availabilityPercent: number
   }
 
   export type EdgeData = {
@@ -185,7 +186,20 @@ export namespace EstimationsGraph {
         },
       })),
       edges: rawEdges,
-      workers: Array.isArray(state.workers) ? state.workers : [],
+      workers: Array.isArray(state.workers)
+        ? state.workers.map((worker) => ({
+            id: worker.id,
+            name: worker.name,
+            skills: Array.isArray(worker.skills) ? worker.skills : [],
+            availabilityPercent: normalizeAvailability(worker.availabilityPercent),
+          }))
+        : [],
     }
+  }
+
+  function normalizeAvailability(input: unknown): number {
+    const value = typeof input === 'number' ? input : Number(input)
+    if (!Number.isFinite(value)) return 100
+    return Math.min(100, Math.max(0, Math.round(value)))
   }
 }
