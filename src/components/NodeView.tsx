@@ -16,6 +16,7 @@ const PRIORITY_COLORS: Record<Priority, string> = {
 }
 
 const RISK_COLORS: Record<ProjectStats.RiskLevel, string> = {
+  none: 'bg-slate-100 text-slate-600 border-slate-200',
   low: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   medium: 'bg-amber-50 text-amber-700 border-amber-200',
   high: 'bg-orange-50 text-orange-700 border-orange-200',
@@ -45,8 +46,11 @@ export function NodeView({
   const [isSkillsEnabled, setIsSkillsEnabled] = useState((data.requiredSkills?.length ?? 0) > 0)
   const [isAssigneeOpen, setIsAssigneeOpen] = useState(false)
   const [isOptionsOpen, setIsOptionsOpen] = useState(false)
+  const [isEditingEstimate, setIsEditingEstimate] = useState(false)
+  const [draftEstimate, setDraftEstimate] = useState('')
   const assigneeMenuRef = useRef<HTMLDivElement | null>(null)
   const optionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const estimateInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     if (data.limit !== undefined && data.limit !== null) {
@@ -59,6 +63,22 @@ export function NodeView({
       setIsSkillsEnabled(true)
     }
   }, [data.requiredSkills])
+
+  useEffect(() => {
+    if (isEditingEstimate) {
+      setDraftEstimate(formatEstimateInput(data.estimate))
+      return
+    }
+    if (!hasEstimate(data.estimate)) {
+      setDraftEstimate('')
+    }
+  }, [data.estimate, isEditingEstimate])
+
+  useEffect(() => {
+    if (!isEditingEstimate) return
+    estimateInputRef.current?.focus()
+    estimateInputRef.current?.select()
+  }, [isEditingEstimate])
 
   useEffect(() => {
     const onPointerDown = (event: PointerEvent | MouseEvent | TouchEvent) => {
@@ -95,6 +115,18 @@ export function NodeView({
   const primaryInitials = getInitials(primaryAssignee?.name ?? 'Unassigned')
   const requiredSkills = data.requiredSkills ?? []
   const skillsForPicker = uniqueSkills([...(skillSuggestions ?? []), ...requiredSkills])
+  const estimateIsSet = hasEstimate(data.estimate)
+
+  const commitEstimate = () => {
+    const parsed = parseFloat(draftEstimate)
+    onUpdateData('estimate', Number.isFinite(parsed) && parsed > 0 ? parsed : 0)
+    setIsEditingEstimate(false)
+  }
+
+  const cancelEstimate = () => {
+    setDraftEstimate(formatEstimateInput(data.estimate))
+    setIsEditingEstimate(false)
+  }
 
   return (
     <div className="rounded border bg-white p-2.5 shadow-md min-w-[180px] flex flex-col gap-2">
@@ -238,15 +270,47 @@ export function NodeView({
       />
 
       <div className="flex flex-col gap-2 text-[10px] text-gray-500 pt-0.5">
-        <div className="flex justify-between items-center gap-2 border rounded px-2 py-1 bg-slate-50">
-          <span className="whitespace-nowrap font-semibold text-[9px] uppercase tracking-wide">Estimate</span>
-          <input
-            type="number"
-            className="w-20 border rounded px-2 text-right text-lg font-bold leading-none focus:ring-1 focus:ring-blue-500 outline-none bg-white text-slate-800"
-            defaultValue={data.estimate}
-            onChange={(e) => onUpdateData('estimate', parseFloat(e.target.value) || 0)}
-          />
-        </div>
+        {!estimateIsSet && !isEditingEstimate && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              title="Click to add estimate"
+              className="text-[10px] text-gray-500 underline decoration-dotted underline-offset-2 hover:text-gray-700"
+              onClick={() => {
+                setDraftEstimate('')
+                setIsEditingEstimate(true)
+              }}
+            >
+              No estimate
+            </button>
+          </div>
+        )}
+
+        {(estimateIsSet || isEditingEstimate) && (
+          <div className="flex justify-between items-center gap-2 border rounded px-2 py-1 bg-slate-50">
+            <span className="whitespace-nowrap font-semibold text-[9px] uppercase tracking-wide">Estimate</span>
+            <div className="w-20 min-h-[30px] flex items-center justify-end">
+              <input
+                ref={estimateInputRef}
+                type="number"
+                value={isEditingEstimate ? draftEstimate : formatEstimateInput(data.estimate)}
+                className="w-20 border rounded px-2 text-right text-lg font-bold leading-none focus:ring-1 focus:ring-blue-500 outline-none bg-white text-slate-800"
+                onFocus={() => setIsEditingEstimate(true)}
+                onChange={(e) => setDraftEstimate(e.target.value)}
+                onBlur={commitEstimate}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    commitEstimate()
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    cancelEstimate()
+                  }
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {isHardStopEnabled && (
           <div className="flex justify-between items-center gap-2">
@@ -274,20 +338,22 @@ export function NodeView({
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[9px] uppercase tracking-wide font-semibold text-gray-400">Risk</span>
-          <select
-            value={data.risk || 'medium'}
-            onChange={(e) => onUpdateData('risk', e.target.value as ProjectStats.RiskLevel)}
-            className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border cursor-pointer outline-none appearance-none text-center ${RISK_COLORS[data.risk || 'medium']}`}
-          >
-            {riskLevels.map((risk) => (
-              <option key={risk} value={risk}>
-                {risk}
-              </option>
-            ))}
-          </select>
-        </div>
+        {estimateIsSet && (
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[9px] uppercase tracking-wide font-semibold text-gray-400">Risk</span>
+            <select
+              value={data.risk || 'none'}
+              onChange={(e) => onUpdateData('risk', e.target.value as ProjectStats.RiskLevel)}
+              className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full border cursor-pointer outline-none appearance-none text-center ${RISK_COLORS[data.risk || 'none']}`}
+            >
+              {riskLevels.map((risk) => (
+                <option key={risk} value={risk}>
+                  {risk}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {totals && (
@@ -330,6 +396,14 @@ export function NodeView({
       <Handle type="source" position={Position.Bottom} />
     </div>
   )
+}
+
+function hasEstimate(estimate: number | undefined): boolean {
+  return typeof estimate === 'number' && Number.isFinite(estimate) && estimate > 0
+}
+
+function formatEstimateInput(estimate: number | undefined): string {
+  return hasEstimate(estimate) ? String(estimate) : ''
 }
 
 function getInitials(name: string): string {

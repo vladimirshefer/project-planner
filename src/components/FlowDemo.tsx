@@ -117,7 +117,7 @@ function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
     setEdges((eds) => eds.filter((edge) => edge.source !== id && edge.target !== id))
   }, [id, setNodes, setEdges])
 
-  const riskLevels: ProjectStats.RiskLevel[] = ['low', 'medium', 'high', 'extreme']
+  const riskLevels: ProjectStats.RiskLevel[] = ['none', 'low', 'medium', 'high', 'extreme']
   const priorities: Priority[] = ['minor', 'medium', 'major', 'critical']
 
   const totals = useMemo(
@@ -308,7 +308,7 @@ export default function FlowDemo({
       }
 
       const data = node.data
-      let currentDist = ProjectStats.generateFromMedianAndRisk(data.estimate ?? 0, data.risk ?? 'low')
+      let currentDist = ProjectStats.generateFromMedianAndRisk(data.estimate ?? 0, data.risk ?? 'none')
       let successProb = 1.0
 
       const children = adj.get(id) || []
@@ -430,7 +430,7 @@ export default function FlowDemo({
           data: {
             label: `Task ${index}`,
             estimate: 1,
-            risk: 'medium',
+            risk: 'none',
             priority: 'medium',
             assigneeIds: [],
             requiredSkills: [],

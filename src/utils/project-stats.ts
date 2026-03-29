@@ -6,9 +6,10 @@ import { StatsEngine } from './stats-engine';
  */
 export namespace ProjectStats {
   
-  export type RiskLevel = 'low' | 'medium' | 'high' | 'extreme';
+  export type RiskLevel = 'none' | 'low' | 'medium' | 'high' | 'extreme';
 
   export const RISK_MULTIPLIERS: Record<RiskLevel, number> = {
+    none: 1,
     low: 1.2,
     medium: 2,
     high: 5,
@@ -22,6 +23,10 @@ export namespace ProjectStats {
    * 100% = estimate * riskMultiplier
    */
   export function generateFromMedianAndRisk(estimate: number, risk: RiskLevel): StatsEngine.Distribution {
+    if (risk === 'none') {
+      return StatsEngine.createConstant(estimate);
+    }
+
     const multiplier = RISK_MULTIPLIERS[risk] || 2;
     const min = estimate * 0.5;
     const median = estimate;

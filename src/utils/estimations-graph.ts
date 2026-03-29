@@ -11,7 +11,7 @@ export namespace EstimationsGraph {
   export type NodeData = {
     label: string
     estimate: number
-    risk: ProjectStats.RiskLevel
+    risk?: ProjectStats.RiskLevel
     priority: Priority
     limit?: number
     assigneeIds?: string[]
@@ -55,13 +55,13 @@ export namespace EstimationsGraph {
         {
           id: '1',
           position: { x: 0, y: 50 },
-          data: { label: 'Total Project', estimate: 0, risk: 'low', priority: 'medium' },
+          data: { label: 'Total Project', estimate: 0, risk: 'none', priority: 'medium' },
           type: 'editable',
         },
         {
           id: '2',
           position: { x: 300, y: 0 },
-          data: { label: 'Feature A', estimate: 5, risk: 'medium', priority: 'medium' },
+          data: { label: 'Feature A', estimate: 5, risk: 'none', priority: 'medium' },
           type: 'editable',
         },
       ],
@@ -181,6 +181,7 @@ export namespace EstimationsGraph {
         ...node,
         data: {
           ...node.data,
+          risk: normalizeRisk(node.data?.risk),
           assigneeIds: Array.isArray(node.data?.assigneeIds) ? node.data.assigneeIds : [],
           requiredSkills: Array.isArray(node.data?.requiredSkills) ? node.data.requiredSkills : [],
         },
@@ -201,5 +202,18 @@ export namespace EstimationsGraph {
     const value = typeof input === 'number' ? input : Number(input)
     if (!Number.isFinite(value)) return 100
     return Math.min(100, Math.max(0, Math.round(value)))
+  }
+
+  function normalizeRisk(input: unknown): ProjectStats.RiskLevel {
+    switch (input) {
+      case 'none':
+      case 'low':
+      case 'medium':
+      case 'high':
+      case 'extreme':
+        return input
+      default:
+        return 'none'
+    }
   }
 }
