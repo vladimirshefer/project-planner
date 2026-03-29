@@ -455,7 +455,7 @@ export namespace EstimationsGraph {
         source: input.source,
         target: input.target,
         type: 'editable',
-        markerEnd: { type: MarkerType.ArrowClosed },
+        markerEnd: input.kind === 'after' ? { type: MarkerType.Arrow } : { type: MarkerType.ArrowClosed },
         data: {
           kind: input.kind,
           ...(input.kind === 'contains' ? { probability, recovery } : {}),
@@ -661,7 +661,11 @@ export namespace EstimationsGraph {
           probability: normalizeProbability(edge.data?.probability),
           recovery: normalizeRecovery(edge.data?.recovery),
         },
-        markerEnd: edge.markerEnd ?? { type: MarkerType.ArrowClosed },
+        markerEnd:
+          edge.markerEnd ??
+          (normalizeEdgeKind(edge.data?.kind) === 'after'
+            ? { type: MarkerType.Arrow }
+            : { type: MarkerType.ArrowClosed }),
       })),
       workers: Array.isArray(state.workers)
         ? state.workers.map((worker) => ({

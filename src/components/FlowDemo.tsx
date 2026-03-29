@@ -151,6 +151,7 @@ function EditableEdge({
   markerEnd,
 }: EdgeProps<Edge<EdgeData>>) {
   const { setEdges } = useReactFlow()
+  const kind = data?.kind ?? 'contains'
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -165,8 +166,13 @@ function EditableEdge({
       setEdges((eds) =>
         eds.map((edge) => {
           if (edge.id === id) {
+            const nextKind = key === 'kind' ? (val as EdgeData['kind']) : (edge.data?.kind ?? 'contains')
             return {
               ...edge,
+              markerEnd:
+                nextKind === 'after'
+                  ? { type: MarkerType.Arrow }
+                  : { type: MarkerType.ArrowClosed },
               data: {
                 ...edge.data,
                 [key]: val,
@@ -182,10 +188,17 @@ function EditableEdge({
 
   return (
     <>
-      <BaseEdge path={edgePath} markerEnd={markerEnd} />
+      <BaseEdge
+        path={edgePath}
+        markerEnd={markerEnd}
+        style={
+          kind === 'after'
+            ? { stroke: '#9ca3af', strokeWidth: 1.2, strokeDasharray: '6 4', opacity: 0.85 }
+            : { strokeWidth: 2 }
+        }
+      />
       <EdgeLabelRenderer>
         {(() => {
-          const kind = data?.kind ?? 'contains'
           return (
         <div
           style={{
