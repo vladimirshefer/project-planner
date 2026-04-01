@@ -20,3 +20,8 @@ pnpm-debug.log*
 # Env
 .env
 .env.*
+
+tsconfig.node.tsbuildinfo
+tsconfig.tsbuildinfo
+vite.config.d.ts
+vite.config.js

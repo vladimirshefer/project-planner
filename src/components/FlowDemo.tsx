@@ -286,7 +286,7 @@ export default function FlowDemo({
   onOpenWorkers,
   onOpenTimeline,
 }: FlowDemoProps) {
-  const [modalMode, setModalMode] = useState<'export' | 'import' | null>(null)
+  const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false)
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
   const [importReport, setImportReport] = useState<EstimationsGraph.ImportReport | null>(null)
@@ -415,35 +415,28 @@ export default function FlowDemo({
       setEdges([])
       setWorkers([])
     }
-  }, [setNodes, setEdges])
+  }, [setNodes, setEdges, setWorkers])
 
-  const openExportModal = useCallback(() => {
+  const openCodeEditor = useCallback(() => {
     setModalText(EstimationsGraph.serializeText({ nodes, edges, workers }))
     setImportError('')
     setImportReport(null)
-    setModalMode('export')
+    setIsCodeEditorOpen(true)
   }, [nodes, edges, workers])
 
-  const openImportModal = useCallback(() => {
-    setModalText('')
-    setImportError('')
-    setImportReport(null)
-    setModalMode('import')
-  }, [])
-
   const closeModal = useCallback(() => {
-    setModalMode(null)
+    setIsCodeEditorOpen(false)
     setImportError('')
   }, [])
 
-  const onImportApply = useCallback(() => {
+  const onCodeApply = useCallback(() => {
     try {
       const result = EstimationsGraph.deserializeText(modalText)
       setNodes(result.state.nodes as Node<NodeData>[])
       setEdges(result.state.edges as Edge[])
       setWorkers(result.state.workers ?? [])
       setImportReport(result.report)
-      setModalMode(null)
+      setIsCodeEditorOpen(false)
       setImportError('')
     } catch (e) {
       if (e instanceof Error) {
@@ -452,7 +445,7 @@ export default function FlowDemo({
         setImportError('Invalid YAML.')
       }
     }
-  }, [modalText, setNodes, setEdges])
+  }, [modalText, setNodes, setEdges, setWorkers])
 
   const addNodeAt = useCallback(
     (position: { x: number; y: number }) => {
@@ -569,16 +562,10 @@ export default function FlowDemo({
               </button>
             )}
             <button
-              onClick={openExportModal}
+              onClick={openCodeEditor}
               className="px-3 py-1 bg-indigo-500 text-white rounded text-xs font-semibold hover:bg-indigo-600 transition-colors"
             >
-              Export
-            </button>
-            <button
-              onClick={openImportModal}
-              className="px-3 py-1 bg-violet-500 text-white rounded text-xs font-semibold hover:bg-violet-600 transition-colors"
-            >
-              Import
+              Edit Code
             </button>
             <button
               onClick={onAddNode}
@@ -606,14 +593,12 @@ export default function FlowDemo({
             </button>
           </Panel>
 
-          {modalMode && (
+          {isCodeEditorOpen && (
             <Panel position="top-left" className="!left-0 !top-0 !m-0 !p-0">
               <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
                 <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-800">
-                      {modalMode === 'export' ? 'Export Project YAML' : 'Import Project YAML'}
-                    </h3>
+                    <h3 className="text-sm font-semibold text-gray-800">Edit Project YAML</h3>
                     <button
                       onClick={closeModal}
                       className="px-2 py-1 text-xs rounded border text-gray-600 hover:bg-gray-50"
@@ -624,20 +609,17 @@ export default function FlowDemo({
                   <textarea
                     value={modalText}
                     onChange={(e) => setModalText(e.target.value)}
-                    readOnly={modalMode === 'export'}
                     className="w-full min-h-[320px] border rounded p-2 text-xs font-mono text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
                     placeholder={'Paste YAML like:\nversion: 1\nitems:\n  - name: "Item A"'}
                   />
                   {importError && <p className="text-xs text-red-600">{importError}</p>}
                   <div className="flex justify-end gap-2">
-                    {modalMode === 'import' && (
-                      <button
-                        onClick={onImportApply}
-                        className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600"
-                      >
-                        Apply Import
-                      </button>
-                    )}
+                    <button
+                      onClick={onCodeApply}
+                      className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600"
+                    >
+                      Apply
+                    </button>
                   </div>
                 </div>
               </div>
@@ -648,7 +630,7 @@ export default function FlowDemo({
               <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
                 <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-800">Import Report</h3>
+                    <h3 className="text-sm font-semibold text-gray-800">Code Apply Report</h3>
                     <button
                       onClick={() => setImportReport(null)}
                       className="px-2 py-1 text-xs rounded border text-gray-600 hover:bg-gray-50"
