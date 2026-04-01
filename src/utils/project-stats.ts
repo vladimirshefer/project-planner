@@ -52,6 +52,7 @@ export namespace ProjectStats {
    * The structure we use to show the final results to the user.
    */
   export interface ViewMarks {
+    p30: number;
     p50: number;
     p80: number;
     p95: number;
@@ -65,6 +66,7 @@ export namespace ProjectStats {
    */
   export function extractViewMarks(dist: StatsEngine.Distribution, successProb: number): ViewMarks {
     return {
+      p30: StatsEngine.getPercentile(dist, 30),
       p50: StatsEngine.getPercentile(dist, 50),
       p80: StatsEngine.getPercentile(dist, 80),
       p95: StatsEngine.getPercentile(dist, 95),

@@ -38,7 +38,7 @@ export function NodeView({
   skillSuggestions: string[]
   priorities: Priority[]
   riskLevels: ProjectStats.RiskLevel[]
-  totals: ReturnType<typeof ProjectStats.extractViewMarks> | null
+  totals: ProjectStats.ViewMarks | null
   onUpdateData: (key: keyof NodeData, value: any) => void
   onDeleteNode: () => void
 }) {
@@ -46,10 +46,12 @@ export function NodeView({
   const [isSkillsEnabled, setIsSkillsEnabled] = useState((data.requiredSkills?.length ?? 0) > 0)
   const [isAssigneeOpen, setIsAssigneeOpen] = useState(false)
   const [isOptionsOpen, setIsOptionsOpen] = useState(false)
+  const [isEstimateInfoOpen, setIsEstimateInfoOpen] = useState(false)
   const [isEditingEstimate, setIsEditingEstimate] = useState(false)
   const [draftEstimate, setDraftEstimate] = useState('')
   const assigneeMenuRef = useRef<HTMLDivElement | null>(null)
   const optionsMenuRef = useRef<HTMLDivElement | null>(null)
+  const estimateInfoRef = useRef<HTMLDivElement | null>(null)
   const estimateInputRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
@@ -90,12 +92,16 @@ export function NodeView({
       if (isOptionsOpen && optionsMenuRef.current && !optionsMenuRef.current.contains(target)) {
         setIsOptionsOpen(false)
       }
+      if (isEstimateInfoOpen && estimateInfoRef.current && !estimateInfoRef.current.contains(target)) {
+        setIsEstimateInfoOpen(false)
+      }
     }
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
       setIsAssigneeOpen(false)
       setIsOptionsOpen(false)
+      setIsEstimateInfoOpen(false)
     }
 
     document.addEventListener('pointerdown', onPointerDown)
@@ -107,7 +113,7 @@ export function NodeView({
       document.removeEventListener('touchstart', onPointerDown)
       document.removeEventListener('keydown', onKeyDown)
     }
-  }, [isAssigneeOpen, isOptionsOpen])
+  }, [isAssigneeOpen, isEstimateInfoOpen, isOptionsOpen])
 
   const assigneeIds = data.assigneeIds ?? []
   const assignees = workers.filter((worker) => assigneeIds.includes(worker.id))
@@ -270,6 +276,78 @@ export function NodeView({
       />
 
       <div className="flex flex-col gap-2 text-[10px] text-gray-500 pt-0.5">
+        {totals && (
+          <div className="relative rounded-md border border-blue-100 px-2 py-2 shadow-sm" ref={estimateInfoRef}>
+            <div className="flex items-start justify-between gap-2">
+              <div
+                className="flex min-w-0 flex-1 items-end justify-between gap-2"
+                aria-label="Estimate summary"
+              >
+                <div
+                  title="Optimistic estimate - P30 - 30% chance"
+                  className="flex min-w-0 flex-col items-start text-emerald-700"
+                >
+                  <span className="text-[8px] font-semibold uppercase tracking-wide text-emerald-600/80">Opt</span>
+                  <span className="text-sm font-semibold leading-none">{totals.p30.toFixed(1)}</span>
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col items-center text-center text-sky-900">
+                  <span className="text-[8px] font-semibold uppercase tracking-[0.16em] text-sky-600">Expected avg</span>
+                  <span className="text-[28px] font-black leading-none tracking-tight">{totals.ev.toFixed(1)}</span>
+                </div>
+                <div
+                  title="Worst-case estimate - P95 - 95% confidence"
+                  className="flex min-w-0 flex-col items-end text-orange-700"
+                >
+                  <span className="text-[8px] font-semibold uppercase tracking-wide text-orange-600/80">Worst</span>
+                  <span className="text-sm font-semibold leading-none">{totals.p95.toFixed(1)}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                aria-expanded={isEstimateInfoOpen}
+                aria-label="Show estimate details"
+                onClick={() => setIsEstimateInfoOpen((open) => !open)}
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-blue-200 bg-white text-[10px] font-bold text-blue-700 shadow-sm hover:bg-blue-50"
+              >
+                i
+              </button>
+            </div>
+
+            {isEstimateInfoOpen && (
+              <div className="absolute right-0 top-full z-20 mt-1 w-40 md border border-blue-100 bg-white p-2 shadow-lg">
+                <div className="mb-1 text-[9px] font-semibold uppercase tracking-wide text-blue-500">Estimate breakdown</div>
+                <div className="space-y-1 text-[10px] text-slate-600">
+                  <div className="flex items-center justify-between gap-2">
+                    <span>Expected avg</span>
+                    <span className="font-semibold text-sky-800">{totals.ev.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>Optimistic (P30)</span>
+                    <span className="font-semibold text-emerald-700">{totals.p30.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>P50</span>
+                    <span className="font-semibold text-slate-800">{totals.p50.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>P80</span>
+                    <span className="font-semibold text-slate-800">{totals.p80.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>Worst (P95)</span>
+                    <span className="font-semibold text-orange-700">{totals.p95.toFixed(1)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <span>P99</span>
+                    <span className="font-semibold text-slate-800">{totals.p99.toFixed(1)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {!estimateIsSet && !isEditingEstimate && (
           <div className="flex justify-end">
             <button
@@ -287,14 +365,14 @@ export function NodeView({
         )}
 
         {(estimateIsSet || isEditingEstimate) && (
-          <div className="flex justify-between items-center gap-2 border rounded px-2 py-1 bg-slate-50">
-            <span className="whitespace-nowrap font-semibold text-[9px] uppercase tracking-wide">Estimate</span>
-            <div className="w-20 min-h-[30px] flex items-center justify-end">
+          <div className="flex justify-between items-center gap-2 rounded border border-slate-200 px-2 py-1 bg-slate-50/70">
+            <span className="whitespace-nowrap font-medium text-[9px] uppercase tracking-wide text-slate-500">Base estimate</span>
+            <div className="w-20 min-h-[26px] flex items-center justify-end">
               <input
                 ref={estimateInputRef}
                 type="number"
                 value={isEditingEstimate ? draftEstimate : formatEstimateInput(data.estimate)}
-                className="w-20 border rounded px-2 text-right text-lg font-bold leading-none focus:ring-1 focus:ring-blue-500 outline-none bg-white text-slate-800"
+                className="w-20 border rounded px-2 text-right text-sm font-semibold leading-none focus:ring-1 focus:ring-blue-500 outline-none bg-white text-slate-700"
                 onFocus={() => setIsEditingEstimate(true)}
                 onChange={(e) => setDraftEstimate(e.target.value)}
                 onBlur={commitEstimate}
@@ -356,39 +434,13 @@ export function NodeView({
         )}
       </div>
 
-      {totals && (
+      {totals && totals.successProb < 0.9999 && (
         <div className="mt-1 border-t pt-2 flex flex-col gap-1 bg-blue-50/50 -mx-2.5 px-2.5 pb-1.5">
-          <div className="flex justify-between items-center font-bold text-xs text-blue-700">
-            <span>Median (P50):</span>
-            <span>{totals.p50.toFixed(1)}</span>
-          </div>
-
-          {totals.successProb < 0.9999 && (
-            <div
-              className={`flex justify-between items-center text-[10px] font-bold px-1 py-0.5 rounded ${totals.successProb < 0.9 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}
-            >
-              <span>SUCCESS CHANCE:</span>
-              <span>{(totals.successProb * 100).toFixed(1)}%</span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-3 gap-1 text-[9px] text-blue-500 text-center border-t border-blue-100 pt-1">
-            <div title="80% Confidence Level" className="flex flex-col">
-              <span className="opacity-60">80%</span>
-              <span className="font-semibold">{totals.p80.toFixed(1)}</span>
-            </div>
-            <div title="95% Confidence Level" className="flex flex-col border-x border-blue-100/50">
-              <span className="opacity-60">95%</span>
-              <span className="font-semibold">{totals.p95.toFixed(1)}</span>
-            </div>
-            <div title="99% Confidence Level" className="flex flex-col">
-              <span className="opacity-60">99%</span>
-              <span className="font-semibold">{totals.p99.toFixed(1)}</span>
-            </div>
-          </div>
-          <div className="flex justify-between items-center text-[9px] text-blue-400 border-t border-blue-100 pt-1 italic">
-            <span>Expected Avg:</span>
-            <span>{totals.ev.toFixed(1)}</span>
+          <div
+            className={`flex justify-between items-center text-[10px] font-bold px-1 py-0.5 rounded ${totals.successProb < 0.9 ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}
+          >
+            <span>SUCCESS CHANCE:</span>
+            <span>{(totals.successProb * 100).toFixed(1)}%</span>
           </div>
         </div>
       )}
