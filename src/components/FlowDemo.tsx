@@ -26,6 +26,7 @@ import { StatsEngine } from '../utils/stats-engine'
 import { ProjectStats } from '../utils/project-stats'
 import { EstimationsGraph } from '../utils/estimations-graph'
 import { NodeView } from './NodeView'
+import { EdgeView } from './EdgeView'
 import { collectKnownSkills } from '../utils/skills'
 
 type NodeData = EstimationsGraph.NodeData
@@ -152,6 +153,8 @@ function EditableEdge({
 }: EdgeProps<Edge<EdgeData>>) {
   const { setEdges } = useReactFlow()
   const kind = data?.kind ?? 'contains'
+  const probability = data?.probability ?? 100
+  const recovery = data?.recovery ?? 0
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
     sourceY,
@@ -167,16 +170,25 @@ function EditableEdge({
         eds.map((edge) => {
           if (edge.id === id) {
             const nextKind = key === 'kind' ? (val as EdgeData['kind']) : (edge.data?.kind ?? 'contains')
+            const nextData =
+              key === 'kind' && val === 'after'
+                ? {
+                    ...edge.data,
+                    kind: 'after' as EdgeData['kind'],
+                    probability: 100,
+                    recovery: 0,
+                  }
+                : {
+                    ...edge.data,
+                    [key]: val,
+                  }
             return {
               ...edge,
               markerEnd:
                 nextKind === 'after'
                   ? { type: MarkerType.Arrow }
                   : { type: MarkerType.ArrowClosed },
-              data: {
-                ...edge.data,
-                [key]: val,
-              },
+              data: nextData,
             }
           }
           return edge
@@ -198,62 +210,16 @@ function EditableEdge({
         }
       />
       <EdgeLabelRenderer>
-        {(() => {
-          return (
-        <div
-          style={{
-            position: 'absolute',
-            transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-            pointerEvents: 'all',
-          }}
-          className="bg-white p-1 rounded border border-blue-200 shadow-md flex flex-col gap-1 text-[8px] min-w-[60px]"
-        >
-          <div className="flex items-center justify-between gap-1 border-b pb-1">
-            <span className="text-gray-400 font-semibold uppercase">Type:</span>
-            <select
-              value={kind}
-              onChange={(e) => updateEdgeData('kind', e.target.value as EdgeData['kind'])}
-              className="text-[8px] border rounded px-1 py-0.5 bg-white text-gray-700"
-            >
-              <option value="contains">contains</option>
-              <option value="after">after</option>
-            </select>
-          </div>
-          {kind === 'contains' && (
-            <>
-              <div className="flex items-center justify-between gap-1 border-b pb-1">
-                <span className="text-gray-400 font-semibold uppercase">Occur:</span>
-                <div className="flex items-center">
-                  <input
-                    type="number"
-                    defaultValue={data?.probability ?? 100}
-                    onChange={(e) => updateEdgeData('probability', parseFloat(e.target.value) || 0)}
-                    className="w-7 text-right outline-none focus:ring-1 focus:ring-blue-400 rounded px-0.5 text-blue-600 font-bold bg-white"
-                    min="0"
-                    max="100"
-                  />
-                  <span className="text-blue-400 font-bold">%</span>
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-1" title="Chance to still succeed if this dependency fails">
-                <span className="text-gray-400 font-semibold uppercase">Recov:</span>
-                <div className="flex items-center">
-                  <input
-                    type="number"
-                    defaultValue={data?.recovery ?? 0}
-                    onChange={(e) => updateEdgeData('recovery', parseFloat(e.target.value) || 0)}
-                    className="w-7 text-right outline-none focus:ring-1 focus:ring-green-400 rounded px-0.5 text-green-600 font-bold bg-white"
-                    min="0"
-                    max="100"
-                  />
-                  <span className="text-green-400 font-bold">%</span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-          )
-        })()}
+        <EdgeView
+          kind={kind}
+          probability={probability}
+          recovery={recovery}
+          labelX={labelX}
+          labelY={labelY}
+          onChangeKind={(value) => updateEdgeData('kind', value ?? 'contains')}
+          onChangeProbability={(value) => updateEdgeData('probability', value)}
+          onChangeRecovery={(value) => updateEdgeData('recovery', value)}
+        />
       </EdgeLabelRenderer>
     </>
   )
