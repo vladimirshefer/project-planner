@@ -48,16 +48,11 @@ const getNodeSize = (node: Node<NodeData>) => {
   }
 }
 
-const getLayoutedElements = (
-  nodes: Node<NodeData>[],
-  edges: Edge[],
-  direction: string = 'TB'
-) => {
+const getLayoutedElements = (nodes: Node<NodeData>[], edges: Edge[]) => {
   const dagreGraph = new dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}))
-  const isHorizontal = direction === 'LR'
 
   dagreGraph.setGraph({
-    rankdir: direction,
+    rankdir: 'TB',
     ranksep: 90,
     nodesep: 70,
   })
@@ -79,8 +74,8 @@ const getLayoutedElements = (
 
     return {
       ...node,
-      sourcePosition: isHorizontal ? Position.Right : Position.Bottom,
-      targetPosition: isHorizontal ? Position.Left : Position.Top,
+      sourcePosition: Position.Bottom,
+      targetPosition: Position.Top,
       position: {
         x: nodeWithPosition.x - size.width / 2,
         y: nodeWithPosition.y - size.height / 2,
@@ -363,8 +358,8 @@ export default function FlowDemo({
   }, [setEdges])
 
   const onLayout = useCallback(
-    (direction: string) => {
-      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, direction)
+    () => {
+      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges)
       setNodes([...layoutedNodes])
       setEdges([...layoutedEdges])
       window.requestAnimationFrame(() => {
@@ -478,6 +473,21 @@ export default function FlowDemo({
     }
   }, [activeProjectName, nodes, edges, workers, onSaveProject])
 
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== 's') return
+      if (!event.ctrlKey && !event.metaKey) return
+      event.preventDefault()
+      event.stopPropagation()
+      onSaveClick()
+    }
+
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [onSaveClick])
+
   return (
     <div className="h-full w-full overflow-hidden">
       <WorkerPoolContext.Provider value={workers}>
@@ -501,7 +511,7 @@ export default function FlowDemo({
               onClick={onSaveClick}
               className="px-3 py-1 bg-teal-600 text-white rounded text-xs font-semibold hover:bg-teal-700 transition-colors"
             >
-              Save
+              Save (Ctrl+S)
             </button>
             {onOpenProjects && (
               <button
@@ -540,16 +550,10 @@ export default function FlowDemo({
               Add Node
             </button>
             <button
-              onClick={() => onLayout('TB')}
+              onClick={onLayout}
               className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600 transition-colors"
             >
-              Tree Layout (V)
-            </button>
-            <button
-              onClick={() => onLayout('LR')}
-              className="px-3 py-1 bg-slate-500 text-white rounded text-xs font-semibold hover:bg-slate-600 transition-colors"
-            >
-              Tree Layout (H)
+              Tree Layout
             </button>
             <button
               onClick={onClear}
