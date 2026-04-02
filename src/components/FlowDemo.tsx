@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -28,6 +28,7 @@ import { EstimationsGraph } from '../utils/estimations-graph'
 import { NodeView } from './NodeView'
 import { EdgeView } from './EdgeView'
 import { collectKnownSkills } from '../utils/skills'
+import { useClickOutside } from '../utils/use-click-outside'
 
 type NodeData = EstimationsGraph.NodeData
 type EdgeData = EstimationsGraph.EdgeData
@@ -237,27 +238,33 @@ const edgeTypes = {
   editable: EditableEdge,
 }
 
-type FlowDemoProps = {
-  initialState?: EstimationsGraph.GraphState
-  activeProjectName?: string | null
-  focusNodeId?: string | null
-  onSaveProject?: (name: string, state: EstimationsGraph.GraphState) => void
-  onOpenProjects?: () => void
-  onOpenWorkers?: () => void
-  onOpenTimeline?: () => void
-}
-
 export default function FlowDemo({
   initialState,
   activeProjectName,
+  isSavedProject,
   focusNodeId,
   onSaveProject,
+  onSaveProjectAsNew,
+  onRenameProject,
   onOpenProjects,
   onOpenWorkers,
   onOpenTimeline,
-}: FlowDemoProps) {
+}: {
+  initialState?: EstimationsGraph.GraphState
+  activeProjectName?: string | null
+  isSavedProject?: boolean
+  focusNodeId?: string | null
+  onSaveProject?: (name: string, state: EstimationsGraph.GraphState) => void
+  onSaveProjectAsNew?: (name: string, state: EstimationsGraph.GraphState) => void
+  onRenameProject?: (name: string, state: EstimationsGraph.GraphState) => void
+  onOpenProjects?: () => void
+  onOpenWorkers?: () => void
+  onOpenTimeline?: () => void
+}) {
   const [isSidebarPinned, setIsSidebarPinned] = useState(false)
   const [isSidebarHovered, setIsSidebarHovered] = useState(false)
+  const [saveMenuOpen, setSaveMenuOpen] = useState(false)
+  const saveMenuRef = useRef<HTMLDivElement | null>(null)
   const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false)
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
@@ -278,6 +285,8 @@ export default function FlowDemo({
   )
 
   const { fitView, screenToFlowPosition, setCenter } = useReactFlow()
+
+  useClickOutside(saveMenuRef, saveMenuOpen, () => setSaveMenuOpen(false))
 
   useEffect(() => {
     EstimationsGraph.saveToStorage({ nodes, edges, workers })
@@ -475,18 +484,60 @@ export default function FlowDemo({
     [screenToFlowPosition, addNodeAt]
   )
 
+  const promptForProjectName = useCallback((defaultName: string) => {
+    const name = window.prompt('Save project as:', defaultName)
+    return name?.trim() || null
+  }, [])
+
   const onSaveClick = useCallback(() => {
+    setSaveMenuOpen(false)
+    const state: EstimationsGraph.GraphState = { nodes, edges, workers }
+
+    if (isSavedProject && activeProjectName?.trim() && onSaveProject) {
+      onSaveProject(activeProjectName.trim(), state)
+      return
+    }
+
     const suggestedName = activeProjectName?.trim() || 'New Project'
-    const name = window.prompt('Save project as:', suggestedName)
-    if (!name || !name.trim()) return
+    const name = promptForProjectName(suggestedName)
+    if (!name) return
+    if (onSaveProject) {
+      onSaveProject(name, state)
+    } else {
+      EstimationsGraph.saveProject({ name, state })
+    }
+  }, [activeProjectName, isSavedProject, nodes, edges, workers, onSaveProject, promptForProjectName])
+
+  const onRenameClick = useCallback(() => {
+    if (!isSavedProject || !activeProjectName?.trim()) return
+
+    const name = promptForProjectName(activeProjectName.trim())
+    if (!name) return
 
     const state: EstimationsGraph.GraphState = { nodes, edges, workers }
-    if (onSaveProject) {
-      onSaveProject(name.trim(), state)
-    } else {
-      EstimationsGraph.saveProject({ name: name.trim(), state })
+    if (onRenameProject) {
+      onRenameProject(name, state)
+      return
     }
-  }, [activeProjectName, nodes, edges, workers, onSaveProject])
+
+    if (onSaveProject) {
+      onSaveProject(name, state)
+    }
+  }, [activeProjectName, isSavedProject, nodes, edges, workers, onRenameProject, onSaveProject, promptForProjectName])
+
+  const onSaveAsNewClick = useCallback(() => {
+    const suggestedName = activeProjectName?.trim() || 'New Project'
+    const name = promptForProjectName(suggestedName)
+    if (!name) return
+
+    const state: EstimationsGraph.GraphState = { nodes, edges, workers }
+    if (onSaveProjectAsNew) {
+      onSaveProjectAsNew(name, state)
+      return
+    }
+
+    EstimationsGraph.saveProject({ name, state })
+  }, [activeProjectName, nodes, edges, workers, onSaveProjectAsNew, promptForProjectName])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -548,23 +599,64 @@ export default function FlowDemo({
                     {isSidebarExpanded && <span>{isSidebarPinned ? 'Unpin' : 'Pin'}</span>}
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={onSaveClick}
-                    title="Save (Ctrl+S)"
-                    className="h-10 w-full rounded-md bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
-                  >
-                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                      <path
-                        d="M4 3h9l3 3v11H4V3Zm3 0v4h6V3M7 17v-5h6v5"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
-                    {isSidebarExpanded && <span>Save</span>}
-                  </button>
+                  <div className="relative" ref={saveMenuRef}>
+                    <div className="flex items-stretch gap-0">
+                      <button
+                        type="button"
+                        onClick={onSaveClick}
+                        title="Save (Ctrl+S)"
+                        className={`h-10 ${isSidebarExpanded ? 'flex-1 rounded-l-md' : 'w-full rounded-md'} bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold flex items-center gap-2 px-3 transition-colors`}
+                      >
+                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                          <path
+                            d="M4 3h9l3 3v11H4V3Zm3 0v4h6V3M7 17v-5h6v5"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                        {isSidebarExpanded && <span>Save</span>}
+                      </button>
+                      {isSidebarExpanded && (
+                        <button
+                          type="button"
+                          onClick={() => setSaveMenuOpen((value) => !value)}
+                          className="h-10 w-9 rounded-r-md border-l border-teal-500 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors"
+                          aria-label="Open save options"
+                        >
+                          ▾
+                        </button>
+                      )}
+                    </div>
+
+                    {saveMenuOpen && isSidebarExpanded && (
+                      <div className="absolute left-0 right-0 mt-2 rounded border bg-white shadow-lg z-10 overflow-hidden">
+                        {isSavedProject && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSaveMenuOpen(false)
+                              onRenameClick()
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            Rename Project
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSaveMenuOpen(false)
+                            onSaveAsNewClick()
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                        >
+                          Fork Project
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
                   {onOpenProjects && (
                     <button
