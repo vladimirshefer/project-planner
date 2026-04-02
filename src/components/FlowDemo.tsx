@@ -247,10 +247,13 @@ export default function FlowDemo({
   onOpenWorkers,
   onOpenTimeline,
 }: FlowDemoProps) {
+  const [isSidebarPinned, setIsSidebarPinned] = useState(false)
+  const [isSidebarHovered, setIsSidebarHovered] = useState(false)
   const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false)
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
   const [importReport, setImportReport] = useState<EstimationsGraph.ImportReport | null>(null)
+  const isSidebarExpanded = isSidebarPinned || isSidebarHovered
 
   const fallbackState = useMemo(() => EstimationsGraph.loadFromStorage(), [])
   const bootstrapState = initialState ?? fallbackState
@@ -493,56 +496,145 @@ export default function FlowDemo({
       <WorkerPoolContext.Provider value={workers}>
         <SkillSuggestionsContext.Provider value={skillSuggestions}>
           <ReactFlow
-          nodes={computedNodes}
-          edges={edges}
-          onNodesChange={onNodesChange}
-          onEdgesChange={onEdgesChange}
-          onConnect={onConnect}
-          onPaneClick={onPaneClick}
-          nodeTypes={nodeTypes}
-          edgeTypes={edgeTypes}
-          fitView
-        >
-          <MiniMap />
-          <Controls />
-          <Background gap={12} size={1} />
+            nodes={computedNodes}
+            edges={edges}
+            onNodesChange={onNodesChange}
+            onEdgesChange={onEdgesChange}
+            onConnect={onConnect}
+            onPaneClick={onPaneClick}
+            nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
+            fitView
+          >
+            <MiniMap />
+            <Controls />
+            <Background gap={12} size={1} />
+            <Panel position="top-left" className="!top-32 !left-4 !m-0 !p-0">
+              <div
+                className={`bg-white/95 backdrop-blur-sm border shadow-md rounded-lg transition-all duration-200 ${
+                  isSidebarExpanded ? 'w-44' : 'w-12'
+                }`}
+                onMouseEnter={() => setIsSidebarHovered(true)}
+                onMouseLeave={() => setIsSidebarHovered(false)}
+              >
+                <div className="p-1 flex flex-col gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setIsSidebarPinned((value) => !value)}
+                    title={isSidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                    className="h-10 w-full rounded-md border border-transparent hover:bg-gray-100 text-gray-600 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
+                  >
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path
+                        d="M6 3h8v2l-2 2v3l2 2v2H6v-2l2-2V7L6 5V3Zm4 11v3"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {isSidebarExpanded && <span>{isSidebarPinned ? 'Unpin' : 'Pin'}</span>}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={onSaveClick}
+                    title="Save (Ctrl+S)"
+                    className="h-10 w-full rounded-md bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
+                  >
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path
+                        d="M4 3h9l3 3v11H4V3Zm3 0v4h6V3M7 17v-5h6v5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {isSidebarExpanded && <span>Save</span>}
+                  </button>
+
+                  {onOpenProjects && (
+                    <button
+                      type="button"
+                      onClick={onOpenProjects}
+                      title="Projects"
+                      className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
+                    >
+                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path
+                          d="M3 5h14v3H3V5Zm0 6h14v4H3v-4Z"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      {isSidebarExpanded && <span>Projects</span>}
+                    </button>
+                  )}
+
+                  {onOpenWorkers && (
+                    <button
+                      type="button"
+                      onClick={onOpenWorkers}
+                      title="Workers"
+                      className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
+                    >
+                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path
+                          d="M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm7 1a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 16a3.5 3.5 0 0 1 7 0v1H3v-1Zm8 1v-.5a3 3 0 0 1 6 0V17h-6Z"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      {isSidebarExpanded && <span>Workers</span>}
+                    </button>
+                  )}
+
+                  {onOpenTimeline && (
+                    <button
+                      type="button"
+                      onClick={onOpenTimeline}
+                      title="Timeline"
+                      className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
+                    >
+                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path
+                          d="M4 5v10M4 10h12M9 7v6M14 8v4"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      {isSidebarExpanded && <span>Timeline</span>}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={openCodeEditor}
+                    title="Edit Code"
+                    className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
+                  >
+                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path
+                        d="M7 7 4 10l3 3m6-6 3 3-3 3M11 5l-2 10"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
+                    {isSidebarExpanded && <span>Edit Code</span>}
+                  </button>
+                </div>
+              </div>
+            </Panel>
           <Panel position="top-right" className="bg-white p-2 rounded shadow-md border flex gap-2">
-            <button
-              onClick={onSaveClick}
-              className="px-3 py-1 bg-teal-600 text-white rounded text-xs font-semibold hover:bg-teal-700 transition-colors"
-            >
-              Save (Ctrl+S)
-            </button>
-            {onOpenProjects && (
-              <button
-                onClick={onOpenProjects}
-                className="px-3 py-1 bg-gray-700 text-white rounded text-xs font-semibold hover:bg-gray-800 transition-colors"
-              >
-                Projects
-              </button>
-            )}
-            {onOpenWorkers && (
-              <button
-                onClick={onOpenWorkers}
-                className="px-3 py-1 bg-cyan-600 text-white rounded text-xs font-semibold hover:bg-cyan-700 transition-colors"
-              >
-                Workers
-              </button>
-            )}
-            {onOpenTimeline && (
-              <button
-                onClick={onOpenTimeline}
-                className="px-3 py-1 bg-fuchsia-600 text-white rounded text-xs font-semibold hover:bg-fuchsia-700 transition-colors"
-              >
-                Timeline
-              </button>
-            )}
-            <button
-              onClick={openCodeEditor}
-              className="px-3 py-1 bg-indigo-500 text-white rounded text-xs font-semibold hover:bg-indigo-600 transition-colors"
-            >
-              Edit Code
-            </button>
             <button
               onClick={onAddNode}
               className="px-3 py-1 bg-emerald-500 text-white rounded text-xs font-semibold hover:bg-emerald-600 transition-colors"
