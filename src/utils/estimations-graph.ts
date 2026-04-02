@@ -98,6 +98,10 @@ export namespace EstimationsGraph {
     }
   }
 
+  export function createProjectId(): string {
+    return `p-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+  }
+
   export function serialize(state: GraphState): string {
     return serializeText(state)
   }
@@ -580,6 +584,32 @@ export namespace EstimationsGraph {
     storage.removeItem(STORAGE_KEY)
   }
 
+  export function hasMeaningfulDraft(storage: Storage = localStorage): boolean {
+    const raw = storage.getItem(STORAGE_KEY)
+    if (!raw) return false
+
+    try {
+      const draft = deserialize(raw)
+      return getStateSignature(draft) !== getStateSignature(createInitialState())
+    } catch {
+      return false
+    }
+  }
+
+  export function archiveDraftProject(storage: Storage = localStorage): SavedProject | null {
+    if (!hasMeaningfulDraft(storage)) return null
+    const draftState = loadFromStorage(storage)
+    const id = createProjectId()
+    return saveProject(
+      {
+        id,
+        name: `drafts/${id}`,
+        state: draftState,
+      },
+      storage
+    )
+  }
+
   export function listProjects(storage: Storage = localStorage): SavedProject[] {
     const raw = storage.getItem(PROJECTS_STORAGE_KEY)
     if (!raw) return []
@@ -608,7 +638,7 @@ export namespace EstimationsGraph {
     storage: Storage = localStorage
   ): SavedProject {
     const projects = listProjects(storage)
-    const projectId = input.id ?? `p-${Date.now()}-${Math.floor(Math.random() * 10000)}`
+    const projectId = input.id ?? createProjectId()
     const now = new Date().toISOString()
     const tickets = extractTickets(input.state)
 
@@ -638,6 +668,44 @@ export namespace EstimationsGraph {
       if (label) unique.add(label)
     })
     return Array.from(unique)
+  }
+
+  /**
+   * Builds a stable, position-free signature of a graph state so draft detection
+   * compares only meaningful project content, not layout noise or missing defaults.
+   *
+   * We use this when deciding whether `/projects/new` contains a real draft that
+   * should be auto-archived before starting a fresh project.
+   *
+   * Example return value:
+   * `{"nodes":[{"label":"Total Project","estimate":0,"risk":"none","priority":"medium","limit":null,"assigneeIds":[],"requiredSkills":[]}],"edges":[],"workers":[]}`
+   */
+  function getStateSignature(state: GraphState): string {
+    const normalized = normalizeState(state)
+    return JSON.stringify({
+      nodes: normalized.nodes.map((node) => ({
+        label: node.data.label,
+        estimate: node.data.estimate,
+        risk: normalizeRisk(node.data.risk),
+        priority: normalizePriority(node.data.priority),
+        limit: typeof node.data.limit === 'number' ? node.data.limit : null,
+        assigneeIds: [...(node.data.assigneeIds ?? [])],
+        requiredSkills: [...(node.data.requiredSkills ?? [])],
+      })),
+      edges: normalized.edges.map((edge) => ({
+        source: edge.source,
+        target: edge.target,
+        kind: normalizeEdgeKind(edge.data?.kind),
+        probability: normalizeProbability(edge.data?.probability),
+        recovery: normalizeRecovery(edge.data?.recovery),
+      })),
+      workers: normalized.workers.map((worker) => ({
+        id: worker.id,
+        name: worker.name,
+        skills: [...worker.skills],
+        availabilityPercent: normalizeAvailability(worker.availabilityPercent),
+      })),
+    })
   }
 
   function normalizeState(state: Partial<GraphState>): GraphState {

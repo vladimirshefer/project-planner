@@ -50,16 +50,28 @@ function EditorPage() {
     setEditorVersion((v) => v + 1)
   }, [createDraftState, draftProjectName, isNew, loadedProject])
 
+  const openProject = useCallback((saved: EstimationsGraph.SavedProject) => {
+    setActiveProjectId(saved.id)
+    setActiveProjectName(saved.name)
+    navigate(`/projects/${saved.id}`, { replace: true })
+  }, [navigate])
+
   const onSaveProject = useCallback((name: string, state: EstimationsGraph.GraphState) => {
     const saved = EstimationsGraph.saveProject({
       id: activeProjectId ?? undefined,
       name,
       state,
     })
-    setActiveProjectId(saved.id)
-    setActiveProjectName(saved.name)
-    navigate(`/projects/${saved.id}`, { replace: true })
-  }, [activeProjectId, navigate])
+    openProject(saved)
+  }, [activeProjectId, openProject])
+
+  const onSaveProjectAsNew = useCallback((name: string, state: EstimationsGraph.GraphState) => {
+    const saved = EstimationsGraph.saveProject({
+      name,
+      state,
+    })
+    openProject(saved)
+  }, [openProject])
 
   if (!isNew && !loadedProject) {
     return (
@@ -83,8 +95,10 @@ function EditorPage() {
             key={`${activeProjectId ?? 'draft'}-${editorVersion}`}
             initialState={editorState}
             activeProjectName={activeProjectName}
+            isSavedProject={Boolean(activeProjectId)}
             focusNodeId={focusNodeId}
             onSaveProject={onSaveProject}
+            onSaveProjectAsNew={onSaveProjectAsNew}
             onOpenProjects={() => navigate('/projects')}
             onOpenWorkers={() => navigate(activeProjectId ? `/projects/${activeProjectId}/workers` : '/projects/new/workers')}
             onOpenTimeline={() => navigate(activeProjectId ? `/projects/${activeProjectId}/timeline` : '/projects/new/timeline')}
@@ -98,6 +112,7 @@ function EditorPage() {
 function ProjectsPage() {
   const navigate = useNavigate()
   const [search, setSearch] = useState('')
+  const [projectsMenuOpen, setProjectsMenuOpen] = useState(false)
   const projects = useMemo(() => EstimationsGraph.listProjects(), [])
 
   const filteredProjects = useMemo(() => {
@@ -106,17 +121,50 @@ function ProjectsPage() {
     return projects.filter((project) => project.name.toLowerCase().includes(q) || project.tickets.some((ticket) => ticket.toLowerCase().includes(q)))
   }, [projects, search])
 
+  const onStartFreshProject = useCallback(() => {
+    EstimationsGraph.archiveDraftProject()
+    EstimationsGraph.clearStorage()
+    navigate('/projects/new')
+  }, [navigate])
+
   return (
     <div className="h-screen w-screen bg-gray-50 overflow-auto">
       <div className="max-w-5xl mx-auto p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800">Projects</h1>
-          <button
-            onClick={() => navigate('/projects/new')}
-            className="px-3 py-1.5 text-sm font-semibold rounded bg-emerald-600 text-white hover:bg-emerald-700"
-          >
-            New Project
-          </button>
+          <div className="relative">
+            <div className="flex items-stretch">
+              <button
+                onClick={() => navigate('/projects/new')}
+                className="px-3 py-1.5 text-sm font-semibold rounded-l bg-emerald-600 text-white hover:bg-emerald-700"
+              >
+                New Project
+              </button>
+              <button
+                type="button"
+                onClick={() => setProjectsMenuOpen((value) => !value)}
+                className="px-2 py-1.5 text-sm font-semibold rounded-r border-l border-emerald-500 bg-emerald-600 text-white hover:bg-emerald-700"
+                aria-label="Open new project options"
+              >
+                ▾
+              </button>
+            </div>
+
+            {projectsMenuOpen && (
+              <div className="absolute right-0 mt-2 w-56 rounded border bg-white shadow-lg z-10 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProjectsMenuOpen(false)
+                    onStartFreshProject()
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Start fresh project
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <input
