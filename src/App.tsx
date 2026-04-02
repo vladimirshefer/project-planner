@@ -1,24 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { Link, Navigate, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import FlowDemo from './components/FlowDemo'
+import { LandingPage } from './pages/LandingPage'
 import { TimelineView } from './components/TimelineView'
 import { WorkerPoolEditor } from './components/WorkerPoolEditor'
 import { EstimationsGraph } from './utils/estimations-graph'
+import { SampleProject } from './utils/sample-project'
 import { collectKnownSkills } from './utils/skills'
-
-function LegacyRootRedirect() {
-  const [searchParams] = useSearchParams()
-  const projectId = searchParams.get('projectId')
-  if (projectId) return <Navigate to={`/projects/${projectId}`} replace />
-  return <Navigate to="/projects" replace />
-}
 
 function EditorPage() {
   const navigate = useNavigate()
   const { projectId = 'new' } = useParams()
   const [searchParams] = useSearchParams()
   const focusNodeId = searchParams.get('focusNodeId')
+  const template = searchParams.get('template')
 
   const isNew = projectId === 'new'
   const loadedProject = useMemo(() => {
@@ -26,16 +22,23 @@ function EditorPage() {
     return EstimationsGraph.getProjectById(projectId)
   }, [isNew, projectId])
 
+  const createDraftState = useCallback(() => {
+    if (template === 'sample') return SampleProject.createState()
+    return EstimationsGraph.loadFromStorage()
+  }, [template])
+
+  const draftProjectName = template === 'sample' ? 'Sample Draft' : null
+
   const [activeProjectId, setActiveProjectId] = useState<string | null>(loadedProject?.id ?? null)
-  const [activeProjectName, setActiveProjectName] = useState<string | null>(loadedProject?.name ?? null)
-  const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() => loadedProject?.state ?? EstimationsGraph.loadFromStorage())
+  const [activeProjectName, setActiveProjectName] = useState<string | null>(loadedProject?.name ?? draftProjectName)
+  const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() => loadedProject?.state ?? createDraftState())
   const [editorVersion, setEditorVersion] = useState(0)
 
   useEffect(() => {
     if (isNew) {
       setActiveProjectId(null)
-      setActiveProjectName(null)
-      setEditorState(EstimationsGraph.loadFromStorage())
+      setActiveProjectName(draftProjectName)
+      setEditorState(createDraftState())
       setEditorVersion((v) => v + 1)
       return
     }
@@ -44,7 +47,7 @@ function EditorPage() {
     setActiveProjectName(loadedProject.name)
     setEditorState(loadedProject.state)
     setEditorVersion((v) => v + 1)
-  }, [isNew, loadedProject])
+  }, [createDraftState, draftProjectName, isNew, loadedProject])
 
   const onSaveProject = useCallback((name: string, state: EstimationsGraph.GraphState) => {
     const saved = EstimationsGraph.saveProject({
@@ -264,7 +267,7 @@ function MissingProject() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<LegacyRootRedirect />} />
+      <Route path="/" element={<LandingPage />} />
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/new" element={<EditorPage />} />
       <Route path="/projects/:projectId" element={<EditorPage />} />
