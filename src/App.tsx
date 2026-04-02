@@ -86,8 +86,8 @@ function EditorPage() {
             focusNodeId={focusNodeId}
             onSaveProject={onSaveProject}
             onOpenProjects={() => navigate('/projects')}
-            onOpenWorkers={activeProjectId ? () => navigate(`/projects/${activeProjectId}/workers`) : undefined}
-            onOpenTimeline={activeProjectId ? () => navigate(`/projects/${activeProjectId}/timeline`) : undefined}
+            onOpenWorkers={() => navigate(activeProjectId ? `/projects/${activeProjectId}/workers` : '/projects/new/workers')}
+            onOpenTimeline={() => navigate(activeProjectId ? `/projects/${activeProjectId}/timeline` : '/projects/new/timeline')}
           />
         </ReactFlowProvider>
       </div>
@@ -155,18 +155,33 @@ function ProjectsPage() {
 function WorkersPage() {
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
-  const initialProject = useMemo(() => EstimationsGraph.getProjectById(projectId), [projectId])
+  const isDraft = projectId === 'new'
+  const initialProject = useMemo(() => {
+    if (isDraft) return null
+    return EstimationsGraph.getProjectById(projectId)
+  }, [isDraft, projectId])
   const [project, setProject] = useState(initialProject)
+  const [draftState, setDraftState] = useState<EstimationsGraph.GraphState>(() => (
+    isDraft ? EstimationsGraph.loadFromStorage() : EstimationsGraph.createInitialState()
+  ))
 
   useEffect(() => {
     setProject(initialProject)
   }, [initialProject])
 
-  if (!project) return <MissingProject />
+  useEffect(() => {
+    if (!isDraft) return
+    setDraftState(EstimationsGraph.loadFromStorage())
+  }, [isDraft])
+
+  if (!isDraft && !project) return <MissingProject />
+
+  const state = isDraft ? draftState : project!.state
+  const projectName = isDraft ? 'Unsaved Draft' : project!.name
 
   const onWorkersChange = (workers: EstimationsGraph.WorkerDto[]) => {
     const validIds = new Set(workers.map((worker) => worker.id))
-    const nextNodes = project.state.nodes.map((node) => ({
+    const nextNodes = state.nodes.map((node) => ({
       ...node,
       data: {
         ...node.data,
@@ -175,12 +190,18 @@ function WorkersPage() {
     }))
 
     const nextState: EstimationsGraph.GraphState = {
-      ...project.state,
+      ...state,
       workers,
       nodes: nextNodes,
     }
 
-    const saved = EstimationsGraph.saveProject({ id: project.id, name: project.name, state: nextState })
+    if (isDraft) {
+      EstimationsGraph.saveToStorage(nextState)
+      setDraftState(nextState)
+      return
+    }
+
+    const saved = EstimationsGraph.saveProject({ id: project!.id, name: project!.name, state: nextState })
     setProject(saved)
   }
 
@@ -188,16 +209,16 @@ function WorkersPage() {
     <div className="h-screen w-screen bg-gray-50 overflow-auto">
       <div className="max-w-5xl mx-auto p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-800">Workers: {project.name}</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Workers: {projectName}</h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(`/projects/${project.id}/timeline`)}
+              onClick={() => navigate(isDraft ? '/projects/new/timeline' : `/projects/${project!.id}/timeline`)}
               className="px-3 py-1.5 text-sm font-semibold rounded bg-fuchsia-600 text-white hover:bg-fuchsia-700"
             >
               Timeline
             </button>
             <button
-              onClick={() => navigate(`/projects/${project.id}`)}
+              onClick={() => navigate(isDraft ? '/projects/new' : `/projects/${project!.id}`)}
               className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white hover:bg-gray-900"
             >
               Back to Editor
@@ -206,8 +227,8 @@ function WorkersPage() {
         </div>
 
         <WorkerPoolEditor
-          workers={project.state.workers ?? []}
-          suggestions={collectKnownSkills(project.state)}
+          workers={state.workers ?? []}
+          suggestions={collectKnownSkills(state)}
           onChange={onWorkersChange}
         />
       </div>
@@ -218,24 +239,32 @@ function WorkersPage() {
 function TimelinePage() {
   const navigate = useNavigate()
   const { projectId = '' } = useParams()
-  const project = useMemo(() => EstimationsGraph.getProjectById(projectId), [projectId])
+  const isDraft = projectId === 'new'
+  const project = useMemo(() => {
+    if (isDraft) return null
+    return EstimationsGraph.getProjectById(projectId)
+  }, [isDraft, projectId])
+  const state = useMemo(() => (
+    isDraft ? EstimationsGraph.loadFromStorage() : project?.state ?? null
+  ), [isDraft, project])
 
-  if (!project) return <MissingProject />
+  if (!isDraft && !project) return <MissingProject />
+  if (!state) return <MissingProject />
 
   return (
     <div className="h-screen w-screen bg-gray-50 overflow-auto">
       <div className="max-w-6xl mx-auto p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-800">Timeline: {project.name}</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Timeline: {isDraft ? 'Unsaved Draft' : project!.name}</h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(`/projects/${project.id}/workers`)}
+              onClick={() => navigate(isDraft ? '/projects/new/workers' : `/projects/${project!.id}/workers`)}
               className="px-3 py-1.5 text-sm font-semibold rounded bg-cyan-600 text-white hover:bg-cyan-700"
             >
               Workers
             </button>
             <button
-              onClick={() => navigate(`/projects/${project.id}`)}
+              onClick={() => navigate(isDraft ? '/projects/new' : `/projects/${project!.id}`)}
               className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white hover:bg-gray-900"
             >
               Back to Editor
@@ -244,8 +273,8 @@ function TimelinePage() {
         </div>
 
         <TimelineView
-          state={project.state}
-          onTaskClick={(nodeId) => navigate(`/projects/${project.id}?focusNodeId=${nodeId}`)}
+          state={state}
+          onTaskClick={(nodeId) => navigate(isDraft ? `/projects/new?focusNodeId=${nodeId}` : `/projects/${project!.id}?focusNodeId=${nodeId}`)}
         />
       </div>
     </div>
@@ -272,6 +301,8 @@ export default function App() {
       <Route path="/landing-v1" element={<LandingPage />} />
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/new" element={<EditorPage />} />
+      <Route path="/projects/new/workers" element={<WorkersPage />} />
+      <Route path="/projects/new/timeline" element={<TimelinePage />} />
       <Route path="/projects/:projectId" element={<EditorPage />} />
       <Route path="/projects/:projectId/workers" element={<WorkersPage />} />
       <Route path="/projects/:projectId/timeline" element={<TimelinePage />} />

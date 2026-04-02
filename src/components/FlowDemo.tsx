@@ -86,6 +86,15 @@ const getLayoutedElements = (nodes: Node<NodeData>[], edges: Edge[]) => {
   return { nodes: layoutedNodes, edges }
 }
 
+const getLayoutedState = (state: EstimationsGraph.GraphState): EstimationsGraph.GraphState => {
+  const { nodes, edges } = getLayoutedElements(state.nodes, state.edges)
+  return {
+    ...state,
+    nodes,
+    edges,
+  }
+}
+
 function EditableNode({ id, data }: NodeProps<Node<NodeData>>) {
   const { setNodes, setEdges } = useReactFlow()
   const workers = useContext(WorkerPoolContext)
@@ -256,7 +265,10 @@ export default function FlowDemo({
   const isSidebarExpanded = isSidebarPinned || isSidebarHovered
 
   const fallbackState = useMemo(() => EstimationsGraph.loadFromStorage(), [])
-  const bootstrapState = initialState ?? fallbackState
+  const bootstrapState = useMemo(
+    () => getLayoutedState(initialState ?? fallbackState),
+    [fallbackState, initialState]
+  )
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(bootstrapState.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(bootstrapState.edges)
   const [workers, setWorkers] = useState<EstimationsGraph.WorkerDto[]>(bootstrapState.workers ?? [])
@@ -362,14 +374,14 @@ export default function FlowDemo({
 
   const onLayout = useCallback(
     () => {
-      const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges)
-      setNodes([...layoutedNodes])
-      setEdges([...layoutedEdges])
+      const layoutedState = getLayoutedState({ nodes, edges, workers })
+      setNodes([...layoutedState.nodes])
+      setEdges([...layoutedState.edges])
       window.requestAnimationFrame(() => {
         fitView()
       })
     },
-    [nodes, edges, setNodes, setEdges, fitView]
+    [nodes, edges, workers, setNodes, setEdges, fitView]
   )
 
   const onClear = useCallback(() => {
