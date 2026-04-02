@@ -35,12 +35,20 @@ export function LandingPage() {
               Plan work with probabilities, not wishful thinking.
             </h1>
           </div>
-          <button
-            onClick={() => navigate('/projects')}
-            className="rounded-full border border-slate-300 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
-          >
-            Open projects
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => navigate('/')}
+              className="rounded-full border border-slate-300 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+            >
+              Compare v2
+            </button>
+            <button
+              onClick={() => navigate('/projects')}
+              className="rounded-full border border-slate-300 bg-white/80 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-white"
+            >
+              Open projects
+            </button>
+          </div>
         </header>
 
         <main className="grid flex-1 gap-10 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">

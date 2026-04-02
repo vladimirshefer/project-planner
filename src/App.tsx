@@ -3,6 +3,7 @@ import { ReactFlowProvider } from '@xyflow/react'
 import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import FlowDemo from './components/FlowDemo'
 import { LandingPage } from './pages/LandingPage'
+import { LandingPageV2 } from './pages/LandingPageV2'
 import { TimelineView } from './components/TimelineView'
 import { WorkerPoolEditor } from './components/WorkerPoolEditor'
 import { EstimationsGraph } from './utils/estimations-graph'
@@ -267,7 +268,8 @@ function MissingProject() {
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<LandingPage />} />
+      <Route path="/" element={<LandingPageV2 />} />
+      <Route path="/landing-v1" element={<LandingPage />} />
       <Route path="/projects" element={<ProjectsPage />} />
       <Route path="/projects/new" element={<EditorPage />} />
       <Route path="/projects/:projectId" element={<EditorPage />} />
