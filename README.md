@@ -1,35 +1,41 @@
-# Planning Assistant — Frontend
+# Planning Assistant
 
-This is a minimal React + TypeScript app bootstrapped with Vite, styled with Tailwind CSS, and data-fetching powered by @tanstack/react-query.
+Planning Assistant is a local-first project planning tool for building task graphs, adding probabilistic estimates, assigning workers, and reviewing timelines before execution starts.
 
-## Prerequisites
-- Node.js 18+
-- pnpm, npm, or yarn (examples use npm)
+## Main Features
 
-## Setup
+- Visual task graph editor for mapping work and dependencies
+- Probability-aware estimates for more realistic planning
+- Saved projects stored locally in the browser
+- Worker assignment with skills and availability
+- Timeline view for checking scheduling pressure
+- Sample project for exploring the app quickly
+
+## Installation
+
+1. Install Node.js 18 or newer.
+2. Clone this repository.
+3. Install dependencies:
+
 ```bash
 npm install
 ```
 
-## Development
+4. Start the development server:
+
 ```bash
 npm run dev
 ```
-Open the printed local URL in your browser.
 
-### React Flow demo
-After starting the dev server, open the home page and scroll to the "React Flow Demo" section. You can drag nodes and connect them. The example is implemented in `src/components/FlowDemo.tsx` and embedded in `src/App.tsx`.
+5. Open `http://localhost:5173` in your browser.
 
-## Build
+If port `5173` is already in use, use the local URL printed by `npm run dev`.
+
+## Commands
+
 ```bash
+npm run dev
 npm run build
 npm run preview
+npm run typecheck
 ```
-
-## Tech stack
-- React 18
-- TypeScript 5
-- Vite 5
-- Tailwind CSS 3
-- @tanstack/react-query 5
-- @xyflow/react (React Flow) 12
