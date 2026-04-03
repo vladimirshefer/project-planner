@@ -22,6 +22,17 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
+import {
+  LuCalendarRange,
+  LuCode,
+  LuFolderOpen,
+  LuPin,
+  LuPlus,
+  LuSave,
+  LuTrash2,
+  LuUsers,
+  LuWorkflow
+} from 'react-icons/lu'
 import { ProjectStats } from '../utils/project-stats'
 import { EstimationsGraph } from '../utils/estimations-graph'
 import { ProjectEstimator } from '../utils/project-estimator'
@@ -270,6 +281,7 @@ export default function FlowDemo({
   const [importError, setImportError] = useState('')
   const [importReport, setImportReport] = useState<EstimationsGraph.ImportReport | null>(null)
   const isSidebarExpanded = isSidebarPinned || isSidebarHovered
+  const iconClassName = 'h-4 w-4 shrink-0'
 
   const fallbackState = useMemo(() => EstimationsGraph.loadFromStorage(), [])
   const bootstrapState = useMemo(
@@ -527,15 +539,7 @@ export default function FlowDemo({
                     title={isSidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
                     className="h-10 w-full rounded-md border border-transparent hover:bg-gray-100 text-gray-600 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
                   >
-                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                      <path
-                        d="M6 3h8v2l-2 2v3l2 2v2H6v-2l2-2V7L6 5V3Zm4 11v3"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <LuPin className={iconClassName} aria-hidden="true" />
                     {isSidebarExpanded && <span>{isSidebarPinned ? 'Unpin' : 'Pin'}</span>}
                   </button>
 
@@ -547,15 +551,7 @@ export default function FlowDemo({
                         title="Save (Ctrl+S)"
                         className={`h-10 ${isSidebarExpanded ? 'flex-1 rounded-l-md' : 'w-full rounded-md'} bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold flex items-center gap-2 px-3 transition-colors`}
                       >
-                        <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                          <path
-                            d="M4 3h9l3 3v11H4V3Zm3 0v4h6V3M7 17v-5h6v5"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
+                        <LuSave className={iconClassName} aria-hidden="true" />
                         {isSidebarExpanded && <span>Save</span>}
                       </button>
                       {isSidebarExpanded && (
@@ -605,15 +601,7 @@ export default function FlowDemo({
                       title="Projects"
                       className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
                     >
-                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path
-                          d="M3 5h14v3H3V5Zm0 6h14v4H3v-4Z"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <LuFolderOpen className={iconClassName} aria-hidden="true" />
                       {isSidebarExpanded && <span>Projects</span>}
                     </button>
                   )}
@@ -625,15 +613,7 @@ export default function FlowDemo({
                       title="Workers"
                       className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
                     >
-                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path
-                          d="M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm7 1a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM3 16a3.5 3.5 0 0 1 7 0v1H3v-1Zm8 1v-.5a3 3 0 0 1 6 0V17h-6Z"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <LuUsers className={iconClassName} aria-hidden="true" />
                       {isSidebarExpanded && <span>Workers</span>}
                     </button>
                   )}
@@ -645,15 +625,7 @@ export default function FlowDemo({
                       title="Timeline"
                       className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
                     >
-                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path
-                          d="M4 5v10M4 10h12M9 7v6M14 8v4"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <LuCalendarRange className={iconClassName} aria-hidden="true" />
                       {isSidebarExpanded && <span>Timeline</span>}
                     </button>
                   )}
@@ -664,15 +636,7 @@ export default function FlowDemo({
                     title="Edit Code"
                     className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
                   >
-                    <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                      <path
-                        d="M7 7 4 10l3 3m6-6 3 3-3 3M11 5l-2 10"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <LuCode className={iconClassName} aria-hidden="true" />
                     {isSidebarExpanded && <span>Edit Code</span>}
                   </button>
                 </div>
@@ -696,45 +660,21 @@ export default function FlowDemo({
                       onClick={onAddNode}
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-emerald-600 sm:h-9"
                     >
-                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path
-                          d="M10 4v12M4 10h12"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <LuPlus className={iconClassName} aria-hidden="true" />
                       <span>Add Node</span>
                     </button>
                     <button
                       onClick={onLayout}
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-blue-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-600 sm:h-9"
                     >
-                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path
-                          d="M4 5h5v3H4V5Zm7 0h5v3h-5V5ZM7 8v4m6-4v4M4 12h5v3H4v-3Zm7 0h5v3h-5v-3Z"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <LuWorkflow className={iconClassName} aria-hidden="true" />
                       <span>Tree Layout</span>
                     </button>
                     <button
                       onClick={onClear}
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50 sm:h-9"
                     >
-                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-                        <path
-                          d="M5 6h10M8 6V4h4v2m-5 0 .5 9h5L13 6"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      <LuTrash2 className={iconClassName} aria-hidden="true" />
                       <span>Clear</span>
                     </button>
                   </div>
