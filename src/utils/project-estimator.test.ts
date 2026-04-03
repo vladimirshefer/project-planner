@@ -45,7 +45,7 @@ items:
     const project = getAnnotatedRootNode(state, annotated)
 
     expect(project?.data.histogram).toBeDefined()
-    expect(Math.round(getExpectedValue(project) * 10) / 10).toBe(44.2)
+    expect(getExpectedValue(project)).toBeCloseTo(44.2, 1)
   })
 
   it('computes project estimates without any React rendering', () => {
