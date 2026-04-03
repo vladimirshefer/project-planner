@@ -683,26 +683,28 @@ export namespace EstimationsGraph {
   function getStateSignature(state: GraphState): string {
     const normalized = normalizeState(state)
     return JSON.stringify({
-      nodes: normalized.nodes.map((node) => ({
+      nodes: [...normalized.nodes].sort((a, b) => a.id.localeCompare(b.id)).map((node) => ({
         label: node.data.label,
         estimate: node.data.estimate,
         risk: normalizeRisk(node.data.risk),
         priority: normalizePriority(node.data.priority),
         limit: typeof node.data.limit === 'number' ? node.data.limit : null,
-        assigneeIds: [...(node.data.assigneeIds ?? [])],
-        requiredSkills: [...(node.data.requiredSkills ?? [])],
+        assigneeIds: [...(node.data.assigneeIds ?? [])].sort(),
+        requiredSkills: [...(node.data.requiredSkills ?? [])].sort(),
       })),
-      edges: normalized.edges.map((edge) => ({
+      edges: [...normalized.edges]
+        .sort((a, b) => a.id.localeCompare(b.id))
+        .map((edge) => ({
         source: edge.source,
         target: edge.target,
         kind: normalizeEdgeKind(edge.data?.kind),
         probability: normalizeProbability(edge.data?.probability),
         recovery: normalizeRecovery(edge.data?.recovery),
       })),
-      workers: normalized.workers.map((worker) => ({
+      workers: [...normalized.workers].sort((a, b) => a.id.localeCompare(b.id)).map((worker) => ({
         id: worker.id,
         name: worker.name,
-        skills: [...worker.skills],
+        skills: [...worker.skills].sort(),
         availabilityPercent: normalizeAvailability(worker.availabilityPercent),
       })),
     })

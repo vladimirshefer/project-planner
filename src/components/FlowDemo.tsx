@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -28,6 +28,7 @@ import { EstimationsGraph } from '../utils/estimations-graph'
 import { NodeView } from './NodeView'
 import { EdgeView } from './EdgeView'
 import { collectKnownSkills } from '../utils/skills'
+import { useClickOutside } from '../utils/use-click-outside'
 
 type NodeData = EstimationsGraph.NodeData
 type EdgeData = EstimationsGraph.EdgeData
@@ -244,6 +245,7 @@ export default function FlowDemo({
   focusNodeId,
   onSaveProject,
   onSaveProjectAsNew,
+  onRenameProject,
   onOpenProjects,
   onOpenWorkers,
   onOpenTimeline,
@@ -254,6 +256,7 @@ export default function FlowDemo({
   focusNodeId?: string | null
   onSaveProject?: (name: string, state: EstimationsGraph.GraphState) => void
   onSaveProjectAsNew?: (name: string, state: EstimationsGraph.GraphState) => void
+  onRenameProject?: (name: string, state: EstimationsGraph.GraphState) => void
   onOpenProjects?: () => void
   onOpenWorkers?: () => void
   onOpenTimeline?: () => void
@@ -261,6 +264,7 @@ export default function FlowDemo({
   const [isSidebarPinned, setIsSidebarPinned] = useState(false)
   const [isSidebarHovered, setIsSidebarHovered] = useState(false)
   const [saveMenuOpen, setSaveMenuOpen] = useState(false)
+  const saveMenuRef = useRef<HTMLDivElement | null>(null)
   const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false)
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
@@ -281,6 +285,8 @@ export default function FlowDemo({
   )
 
   const { fitView, screenToFlowPosition, setCenter } = useReactFlow()
+
+  useClickOutside(saveMenuRef, saveMenuOpen, () => setSaveMenuOpen(false))
 
   useEffect(() => {
     EstimationsGraph.saveToStorage({ nodes, edges, workers })
@@ -484,6 +490,7 @@ export default function FlowDemo({
   }, [])
 
   const onSaveClick = useCallback(() => {
+    setSaveMenuOpen(false)
     const state: EstimationsGraph.GraphState = { nodes, edges, workers }
 
     if (isSavedProject && activeProjectName?.trim() && onSaveProject) {
@@ -500,6 +507,23 @@ export default function FlowDemo({
       EstimationsGraph.saveProject({ name, state })
     }
   }, [activeProjectName, isSavedProject, nodes, edges, workers, onSaveProject, promptForProjectName])
+
+  const onRenameClick = useCallback(() => {
+    if (!isSavedProject || !activeProjectName?.trim()) return
+
+    const name = promptForProjectName(activeProjectName.trim())
+    if (!name) return
+
+    const state: EstimationsGraph.GraphState = { nodes, edges, workers }
+    if (onRenameProject) {
+      onRenameProject(name, state)
+      return
+    }
+
+    if (onSaveProject) {
+      onSaveProject(name, state)
+    }
+  }, [activeProjectName, isSavedProject, nodes, edges, workers, onRenameProject, onSaveProject, promptForProjectName])
 
   const onSaveAsNewClick = useCallback(() => {
     const suggestedName = activeProjectName?.trim() || 'New Project'
@@ -575,7 +599,7 @@ export default function FlowDemo({
                     {isSidebarExpanded && <span>{isSidebarPinned ? 'Unpin' : 'Pin'}</span>}
                   </button>
 
-                  <div className="relative">
+                  <div className="relative" ref={saveMenuRef}>
                     <div className="flex items-stretch gap-0">
                       <button
                         type="button"
@@ -608,6 +632,18 @@ export default function FlowDemo({
 
                     {saveMenuOpen && isSidebarExpanded && (
                       <div className="absolute left-0 right-0 mt-2 rounded border bg-white shadow-lg z-10 overflow-hidden">
+                        {isSavedProject && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSaveMenuOpen(false)
+                              onRenameClick()
+                            }}
+                            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                          >
+                            Rename Project
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => {
