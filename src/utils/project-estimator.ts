@@ -3,12 +3,10 @@ import { ProjectStats } from './project-stats'
 import { StatsEngine } from './stats-engine'
 
 export namespace ProjectEstimator {
-  export type EstimateResult = {
-    dist: StatsEngine.Distribution
-    successProb: number
-    ev: number
-  }
-
+  /**
+   * Computes estimate distributions for every node and attaches the results
+   * back onto the graph state for rendering and downstream analysis.
+   */
   export function annotateState(state: EstimationsGraph.GraphState): EstimationsGraph.GraphState {
     const estimates = computeAllNodeEstimates(state)
     return {
@@ -28,14 +26,10 @@ export namespace ProjectEstimator {
     }
   }
 
-  export function computeProjectEstimate(
-    state: EstimationsGraph.GraphState,
-    rootNodeId: string = getDefaultRootNodeId(state) ?? ''
-  ): EstimateResult | null {
-    if (!rootNodeId) return null
-    return computeAllNodeEstimates(state).get(rootNodeId) ?? null
-  }
-
+  /**
+   * Returns the first node with no incoming `contains` edge, which is treated
+   * as the top-level project for aggregate assertions and UI display.
+   */
   export function getDefaultRootNodeId(state: EstimationsGraph.GraphState): string | null {
     const incomingContains = new Set(
       state.edges
@@ -48,6 +42,13 @@ export namespace ProjectEstimator {
       .sort((a, b) => a.id.localeCompare(b.id))[0]
 
     return root?.id ?? state.nodes[0]?.id ?? null
+  }
+
+  type EstimateResult = {
+    dist: StatsEngine.Distribution
+    // Probability that this node still succeeds after multiplying local limit checks
+    // and each child edge's optionality / recovery contribution into one value.
+    successProb: number
   }
 
   function computeAllNodeEstimates(state: EstimationsGraph.GraphState): Map<string, EstimateResult> {
@@ -115,7 +116,6 @@ export namespace ProjectEstimator {
     return {
       dist,
       successProb,
-      ev: StatsEngine.getMean(dist),
     }
   }
 }

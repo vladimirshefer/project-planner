@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { EstimationsGraph } from './estimations-graph'
 import { ProjectEstimator } from './project-estimator'
+import { StatsEngine } from './stats-engine'
 
 describe('ProjectEstimator', () => {
   it('computes the root project expected value from YAML input', () => {
@@ -18,10 +19,11 @@ items:
 `
 
     const { state } = EstimationsGraph.deserializeText(yaml)
-    const result = ProjectEstimator.computeProjectEstimate(state)
+    const annotated = ProjectEstimator.annotateState(state)
+    const project = getAnnotatedRootNode(state, annotated)
 
-    expect(result).not.toBeNull()
-    expect(result?.ev).toBe(45)
+    expect(project?.data.histogram).toBeDefined()
+    expect(getExpectedValue(project)).toBe(45)
   })
 
   it('computes a rounded total estimate from YAML input with risk', () => {
@@ -39,10 +41,11 @@ items:
 `
 
     const { state } = EstimationsGraph.deserializeText(yaml)
-    const result = ProjectEstimator.computeProjectEstimate(state)
+    const annotated = ProjectEstimator.annotateState(state)
+    const project = getAnnotatedRootNode(state, annotated)
 
-    expect(result).not.toBeNull()
-    expect(Math.round(result!.ev * 10) / 10).toBe(44.2)
+    expect(project?.data.histogram).toBeDefined()
+    expect(Math.round(getExpectedValue(project) * 10) / 10).toBe(44.2)
   })
 
   it('computes project estimates without any React rendering', () => {
@@ -65,3 +68,15 @@ items:
     expect(project?.data.successProb).toBe(1)
   })
 })
+
+function getAnnotatedRootNode(
+  state: EstimationsGraph.GraphState,
+  annotated: EstimationsGraph.GraphState
+): EstimationsGraph.GraphNode | undefined {
+  const rootNodeId = ProjectEstimator.getDefaultRootNodeId(state)
+  return annotated.nodes.find((node) => node.id === rootNodeId)
+}
+
+function getExpectedValue(node: EstimationsGraph.GraphNode | undefined): number {
+  return StatsEngine.getMean(node?.data.histogram ?? [])
+}
