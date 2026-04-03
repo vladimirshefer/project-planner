@@ -22,9 +22,9 @@ import {
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
-import { StatsEngine } from '../utils/stats-engine'
 import { ProjectStats } from '../utils/project-stats'
 import { EstimationsGraph } from '../utils/estimations-graph'
+import { ProjectEstimator } from '../utils/project-estimator'
 import { NodeView } from './NodeView'
 import { EdgeView } from './EdgeView'
 import { collectKnownSkills } from '../utils/skills'
@@ -295,68 +295,8 @@ export default function FlowDemo({
   }, [focusNodeId, nodes, setCenter])
 
   const computedNodes = useMemo(() => {
-    const adj = new Map<string, Array<{ to: string; prob: number; recovery: number }>>()
-    edges.forEach((e) => {
-      const kind = (e.data as EdgeData | undefined)?.kind ?? 'contains'
-      if (kind !== 'contains') return
-      if (!adj.has(e.source)) adj.set(e.source, [])
-      const prob = (e.data as EdgeData)?.probability ?? 100
-      const recovery = (e.data as EdgeData)?.recovery ?? 0
-      adj.get(e.source)!.push({ to: e.target, prob: prob / 100, recovery: recovery / 100 })
-    })
-
-    const memo = new Map<string, { dist: StatsEngine.Distribution; successProb: number }>()
-    const processing = new Set<string>()
-
-    function computeDist(id: string): { dist: StatsEngine.Distribution; successProb: number } {
-      if (memo.has(id)) return memo.get(id)!
-      if (processing.has(id)) return { dist: StatsEngine.createConstant(0), successProb: 1 }
-
-      processing.add(id)
-      const node = nodes.find((n) => n.id === id)
-      if (!node) {
-        processing.delete(id)
-        return { dist: StatsEngine.createConstant(0), successProb: 1 }
-      }
-
-      const data = node.data
-      let currentDist = ProjectStats.generateFromMedianAndRisk(data.estimate ?? 0, data.risk ?? 'none')
-      let successProb = 1.0
-
-      const children = adj.get(id) || []
-      children.forEach((child) => {
-        const childResult = computeDist(child.to)
-        const childEffectiveDist = StatsEngine.applyProbability(childResult.dist, child.prob)
-        const childEffectiveSuccess = childResult.successProb + (1 - childResult.successProb) * child.recovery
-        const childContributionToSuccess = (1 - child.prob) + child.prob * childEffectiveSuccess
-
-        successProb *= childContributionToSuccess
-        currentDist = StatsEngine.convolve(currentDist, childEffectiveDist)
-      })
-
-      if (data.limit !== undefined && data.limit !== null) {
-        const localSuccessProb = StatsEngine.getProbabilityOfLimit(currentDist, data.limit)
-        successProb *= localSuccessProb
-      }
-
-      const result = { dist: currentDist, successProb }
-      memo.set(id, result)
-      processing.delete(id)
-      return result
-    }
-
-    return nodes.map((n) => {
-      const result = computeDist(n.id)
-      return {
-        ...n,
-        data: {
-          ...n.data,
-          histogram: result.dist,
-          successProb: result.successProb,
-        },
-      }
-    })
-  }, [nodes, edges])
+    return ProjectEstimator.annotateState({ nodes, edges, workers }).nodes
+  }, [nodes, edges, workers])
 
   const onConnect = useCallback((connection: Connection) => {
     setEdges((eds) =>
