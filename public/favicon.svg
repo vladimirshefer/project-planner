@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Planning Assistant</title>
+  <desc id="desc">A warm square icon with connected planning nodes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" x2="224" y1="32" y2="224" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1c1917" />
+      <stop offset="1" stop-color="#44403c" />
+    </linearGradient>
+    <linearGradient id="accent" x1="64" x2="192" y1="64" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#f59e0b" />
+      <stop offset="1" stop-color="#f97316" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="64" fill="url(#bg)" />
+  <circle cx="128" cy="128" r="88" fill="#f6ead8" fill-opacity="0.12" />
+  <path
+    d="M78 161 L110 103 L150 131 L180 85"
+    fill="none"
+    stroke="url(#accent)"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    stroke-width="16"
+  />
+  <circle cx="78" cy="161" r="18" fill="#f6ead8" />
+  <circle cx="110" cy="103" r="18" fill="#fde68a" />
+  <circle cx="150" cy="131" r="18" fill="#fdba74" />
+  <circle cx="180" cy="85" r="18" fill="#fb7185" />
+</svg>
