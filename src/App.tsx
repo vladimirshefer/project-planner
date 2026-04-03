@@ -92,14 +92,6 @@ function EditorPage() {
 
   return (
     <div className="h-screen w-screen flex flex-col overflow-hidden bg-gray-50">
-      <header className="absolute top-4 left-4 z-10 flex flex-col gap-2 pointer-events-none">
-        <div className="bg-white/80 backdrop-blur-sm p-4 rounded-lg border shadow-sm pointer-events-auto">
-          <h1 className="text-xl font-bold text-gray-800">Planning Assistant</h1>
-          <p className="text-xs text-gray-500">Tree-based planning with probabilistic estimates</p>
-          <p className="text-[10px] text-gray-500 mt-1">Active project: {activeProjectName ?? 'Unsaved Draft'}</p>
-        </div>
-      </header>
-
       <div className="flex-grow relative">
         <ReactFlowProvider>
           <FlowDemo

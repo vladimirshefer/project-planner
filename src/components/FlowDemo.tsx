@@ -512,7 +512,7 @@ export default function FlowDemo({
             <MiniMap />
             <Controls />
             <Background gap={12} size={1} />
-            <Panel position="top-left" className="!top-32 !left-4 !m-0 !p-0">
+            <Panel position="top-left" className="top-[7.5rem] left-3 m-0 p-0 sm:top-4 sm:left-4">
               <div
                 className={`bg-white/95 backdrop-blur-sm border shadow-md rounded-lg transition-all duration-200 ${
                   isSidebarExpanded ? 'w-44' : 'w-12'
@@ -678,26 +678,69 @@ export default function FlowDemo({
                 </div>
               </div>
             </Panel>
-          <Panel position="top-right" className="bg-white p-2 rounded shadow-md border flex gap-2">
-            <button
-              onClick={onAddNode}
-              className="px-3 py-1 bg-emerald-500 text-white rounded text-xs font-semibold hover:bg-emerald-600 transition-colors"
+            <Panel
+              position="top-right"
+              className="top-3 right-3 m-0 p-0 top-4 right-4 sm:w-auto sm:max-w-none"
             >
-              Add Node
-            </button>
-            <button
-              onClick={onLayout}
-              className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600 transition-colors"
-            >
-              Tree Layout
-            </button>
-            <button
-              onClick={onClear}
-              className="px-3 py-1 border border-red-200 text-red-500 rounded text-xs font-semibold hover:bg-red-50 transition-colors"
-            >
-              Clear
-            </button>
-          </Panel>
+              <div className="rounded-xl border bg-white/95 p-2 shadow-md backdrop-blur-sm">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Active project</p>
+                    <p className="break-words text-xs font-semibold text-slate-800">
+                      {activeProjectName?.trim() || 'Unsaved Draft'}
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
+                    <button
+                      onClick={onAddNode}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-emerald-600 sm:h-9"
+                    >
+                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path
+                          d="M10 4v12M4 10h12"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span>Add Node</span>
+                    </button>
+                    <button
+                      onClick={onLayout}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-blue-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-600 sm:h-9"
+                    >
+                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path
+                          d="M4 5h5v3H4V5Zm7 0h5v3h-5V5ZM7 8v4m6-4v4M4 12h5v3H4v-3Zm7 0h5v3h-5v-3Z"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span>Tree Layout</span>
+                    </button>
+                    <button
+                      onClick={onClear}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-500 transition-colors hover:bg-red-50 sm:h-9"
+                    >
+                      <svg className="h-4 w-4 shrink-0" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                        <path
+                          d="M5 6h10M8 6V4h4v2m-5 0 .5 9h5L13 6"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                      <span>Clear</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Panel>
 
           {isCodeEditorOpen && (
             <Panel position="top-left" className="!left-0 !top-0 !m-0 !p-0">
