@@ -49,17 +49,19 @@ export function TimelineView({
                 {tasks.map((task) => {
                   const left = task.start * pxPerUnit
                   const width = Math.max(8, (task.end - task.start) * pxPerUnit)
+                  const formattedStart = formatTimelineValue(task.start)
+                  const formattedEnd = formatTimelineValue(task.end)
                   return (
                     <button
                       type="button"
                       key={task.nodeId}
                       className={`absolute top-1.5 h-9 rounded px-2 py-1 text-[10px] font-semibold overflow-hidden ${lane.kind === 'virtual' ? 'bg-red-100 text-red-700 border border-red-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}
                       style={{ left: `${left}px`, width: `${width}px` }}
-                      title={`${task.nodeLabel} (${task.start} -> ${task.end})${task.reason ? `, ${task.reason}` : ''}`}
+                      title={`${task.nodeLabel} (${formattedStart} -> ${formattedEnd})${task.reason ? `, ${task.reason}` : ''}`}
                       onClick={() => onTaskClick?.(task.nodeId)}
                     >
                       <div className="truncate">{task.nodeLabel}</div>
-                      <div className="text-[9px] opacity-70">{task.start} - {task.end}</div>
+                      <div className="text-[9px] opacity-70">{formattedStart} - {formattedEnd}</div>
                     </button>
                   )
                 })}
@@ -70,4 +72,9 @@ export function TimelineView({
       </div>
     </div>
   )
+}
+
+function formatTimelineValue(value: number): string {
+  const rounded = Math.round(value * 10) / 10
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1)
 }
