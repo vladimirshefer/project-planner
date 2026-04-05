@@ -26,6 +26,7 @@ import {
   LuCalendarRange,
   LuCode,
   LuFolderOpen,
+  LuLink,
   LuPin,
   LuPlus,
   LuSave,
@@ -36,6 +37,7 @@ import {
 import { ProjectStats } from '../utils/project-stats'
 import { EstimationsGraph } from '../utils/estimations-graph'
 import { ProjectEstimator } from '../utils/project-estimator'
+import { buildShareUrl, encodeSharePayload, isShareSupported, isShareUrlTooLarge } from '../utils/share-url'
 import { NodeView } from '../pages/EditorPage/NodeView'
 import { EdgeView } from './EdgeView'
 import { collectKnownSkills } from '../utils/skills'
@@ -280,6 +282,8 @@ export default function FlowDemo({
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
   const [importReport, setImportReport] = useState<EstimationsGraph.ImportReport | null>(null)
+  const [shareStatus, setShareStatus] = useState<string | null>(null)
+  const [isSharing, setIsSharing] = useState(false)
   const isSidebarExpanded = isSidebarPinned || isSidebarHovered
   const iconClassName = 'h-4 w-4 shrink-0'
 
@@ -491,6 +495,34 @@ export default function FlowDemo({
     EstimationsGraph.saveProject({ name, state })
   }, [activeProjectName, nodes, edges, workers, onSaveProjectAsNew, promptForProjectName])
 
+  const onShareClick = useCallback(async () => {
+    setShareStatus(null)
+
+    if (!isShareSupported()) {
+      setShareStatus('Share links are not supported in this browser.')
+      return
+    }
+
+    setIsSharing(true)
+    try {
+      const state: EstimationsGraph.GraphState = { nodes, edges, workers }
+      const payload = await encodeSharePayload(state)
+      const url = buildShareUrl(payload)
+
+      if (isShareUrlTooLarge(url)) {
+        setShareStatus('Project is too large for a share link. Use YAML export instead.')
+        return
+      }
+
+      await navigator.clipboard.writeText(url)
+      setShareStatus('Share link copied.')
+    } catch (error) {
+      setShareStatus(error instanceof Error ? error.message : 'Failed to create share link.')
+    } finally {
+      setIsSharing(false)
+    }
+  }, [nodes, edges, workers])
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key.toLowerCase() !== 's') return
@@ -657,6 +689,16 @@ export default function FlowDemo({
 
                   <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">
                     <button
+                      onClick={() => {
+                        void onShareClick()
+                      }}
+                      disabled={isSharing}
+                      className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-slate-700 px-3 text-xs font-semibold text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 sm:h-9"
+                    >
+                      <LuLink className={iconClassName} aria-hidden="true" />
+                      <span>{isSharing ? 'Sharing...' : 'Share'}</span>
+                    </button>
+                    <button
                       onClick={onAddNode}
                       className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-emerald-600 sm:h-9"
                     >
@@ -679,6 +721,11 @@ export default function FlowDemo({
                     </button>
                   </div>
                 </div>
+                {shareStatus && (
+                  <p className="px-1 pt-2 text-xs text-slate-600">
+                    {shareStatus}
+                  </p>
+                )}
               </div>
             </Panel>
 
