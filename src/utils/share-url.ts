@@ -62,13 +62,13 @@ function assertCompressionSupport(): void {
 
 async function compressBytes(input: Uint8Array): Promise<Uint8Array> {
   const stream = new CompressionStream('gzip')
-  return readAllBytes(new Blob([input]).stream().pipeThrough(stream))
+  return readAllBytes(new Blob([toArrayBuffer(input)]).stream().pipeThrough(stream))
 }
 
 async function decompressBytes(input: Uint8Array): Promise<Uint8Array> {
   try {
     const stream = new DecompressionStream('gzip')
-    return await readAllBytes(new Blob([input]).stream().pipeThrough(stream))
+    return await readAllBytes(new Blob([toArrayBuffer(input)]).stream().pipeThrough(stream))
   } catch {
     throw new Error('Failed to decompress share payload.')
   }
@@ -108,4 +108,10 @@ function encodeBase64(bytes: Uint8Array): string {
 function decodeBase64(value: string): Uint8Array {
   const binary = atob(value)
   return Uint8Array.from(binary, (char) => char.charCodeAt(0))
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(bytes.byteLength)
+  copy.set(bytes)
+  return copy.buffer
 }

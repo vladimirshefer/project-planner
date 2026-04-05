@@ -50,7 +50,7 @@ describe('share-url', () => {
     const payload = await encodeSharePayload(state)
     const decoded = await decodeSharePayload(payload)
 
-    expect(decoded.state).toEqual(EstimationsGraph.deserialize(JSON.stringify(state)))
+    expect(EstimationsGraph.serializeText(decoded.state)).toBe(EstimationsGraph.serializeText(state))
   })
 
   it('rejects unknown payload versions', async () => {
