@@ -37,6 +37,7 @@ import {
 import { ProjectStats } from '../utils/project-stats'
 import { EstimationsGraph } from '../utils/estimations-graph'
 import { ProjectEstimator } from '../utils/project-estimator'
+import { projectManager } from '../utils/project-manager'
 import { buildShareUrl, encodeSharePayload, isShareSupported, isShareUrlTooLarge } from '../utils/share-url'
 import { NodeView } from '../pages/EditorPage/NodeView'
 import { EdgeView } from './EdgeView'
@@ -253,8 +254,8 @@ const edgeTypes = {
 
 export default function FlowDemo({
   initialState,
+  activeProjectId,
   activeProjectName,
-  isSavedProject,
   focusNodeId,
   onSaveProject,
   onSaveProjectAsNew,
@@ -264,8 +265,8 @@ export default function FlowDemo({
   onOpenTimeline,
 }: {
   initialState?: EstimationsGraph.GraphState
+  activeProjectId?: string | null
   activeProjectName?: string | null
-  isSavedProject?: boolean
   focusNodeId?: string | null
   onSaveProject?: (name: string, state: EstimationsGraph.GraphState) => void
   onSaveProjectAsNew?: (name: string, state: EstimationsGraph.GraphState) => void
@@ -287,10 +288,9 @@ export default function FlowDemo({
   const isSidebarExpanded = isSidebarPinned || isSidebarHovered
   const iconClassName = 'h-4 w-4 shrink-0'
 
-  const fallbackState = useMemo(() => EstimationsGraph.loadFromStorage(), [])
   const bootstrapState = useMemo(
-    () => getLayoutedState(initialState ?? fallbackState),
-    [fallbackState, initialState]
+    () => getLayoutedState(initialState ?? EstimationsGraph.createInitialState()),
+    [initialState]
   )
   const [nodes, setNodes, onNodesChange] = useNodesState<Node<NodeData>>(bootstrapState.nodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(bootstrapState.edges)
@@ -305,8 +305,13 @@ export default function FlowDemo({
   useClickOutside(saveMenuRef, saveMenuOpen, () => setSaveMenuOpen(false))
 
   useEffect(() => {
-    EstimationsGraph.saveToStorage({ nodes, edges, workers })
-  }, [nodes, edges, workers])
+    if (!activeProjectId || !activeProjectName?.trim()) return
+    projectManager.saveProject({
+      projectId: activeProjectId,
+      name: activeProjectName.trim(),
+      state: { nodes, edges, workers },
+    })
+  }, [activeProjectId, activeProjectName, nodes, edges, workers])
 
   useEffect(() => {
     if (!focusNodeId) return
@@ -351,7 +356,6 @@ export default function FlowDemo({
 
   const onClear = useCallback(() => {
     if (window.confirm('Are you sure you want to clear the entire project?')) {
-      EstimationsGraph.clearStorage()
       setNodes([])
       setEdges([])
       setWorkers([])
@@ -449,7 +453,7 @@ export default function FlowDemo({
     setSaveMenuOpen(false)
     const state: EstimationsGraph.GraphState = { nodes, edges, workers }
 
-    if (isSavedProject && activeProjectName?.trim() && onSaveProject) {
+    if (activeProjectId && activeProjectName?.trim() && onSaveProject) {
       onSaveProject(activeProjectName.trim(), state)
       return
     }
@@ -460,12 +464,12 @@ export default function FlowDemo({
     if (onSaveProject) {
       onSaveProject(name, state)
     } else {
-      EstimationsGraph.saveProject({ name, state })
+      projectManager.saveProject({ name, state })
     }
-  }, [activeProjectName, isSavedProject, nodes, edges, workers, onSaveProject, promptForProjectName])
+  }, [activeProjectId, activeProjectName, nodes, edges, workers, onSaveProject, promptForProjectName])
 
   const onRenameClick = useCallback(() => {
-    if (!isSavedProject || !activeProjectName?.trim()) return
+    if (!activeProjectId || !activeProjectName?.trim()) return
 
     const name = promptForProjectName(activeProjectName.trim())
     if (!name) return
@@ -479,7 +483,7 @@ export default function FlowDemo({
     if (onSaveProject) {
       onSaveProject(name, state)
     }
-  }, [activeProjectName, isSavedProject, nodes, edges, workers, onRenameProject, onSaveProject, promptForProjectName])
+  }, [activeProjectId, activeProjectName, nodes, edges, workers, onRenameProject, onSaveProject, promptForProjectName])
 
   const onSaveAsNewClick = useCallback(() => {
     const suggestedName = activeProjectName?.trim() || 'New Project'
@@ -492,7 +496,7 @@ export default function FlowDemo({
       return
     }
 
-    EstimationsGraph.saveProject({ name, state })
+    projectManager.saveProject({ name, state })
   }, [activeProjectName, nodes, edges, workers, onSaveProjectAsNew, promptForProjectName])
 
   const onShareClick = useCallback(async () => {
@@ -600,7 +604,7 @@ export default function FlowDemo({
 
                     {saveMenuOpen && isSidebarExpanded && (
                       <div className="absolute left-0 right-0 mt-2 rounded border bg-white shadow-lg z-10 overflow-hidden">
-                        {isSavedProject && (
+                        {activeProjectId && (
                           <button
                             type="button"
                             onClick={() => {

@@ -4,9 +4,6 @@ import { StatsEngine } from './stats-engine'
 import { ProjectStats } from './project-stats'
 
 export namespace EstimationsGraph {
-  export const STORAGE_KEY = 'planning-assistant-graph-v1'
-  export const PROJECTS_STORAGE_KEY = 'planning-assistant-projects-v1'
-
   export type Priority = 'minor' | 'medium' | 'major' | 'critical'
 
   export type NodeData = {
@@ -98,10 +95,6 @@ export namespace EstimationsGraph {
     }
   }
 
-  export function createProjectId(): string {
-    return `p-${Date.now()}-${Math.floor(Math.random() * 10000)}`
-  }
-
   export function serialize(state: GraphState): string {
     return serializeText(state)
   }
@@ -112,11 +105,11 @@ export namespace EstimationsGraph {
       throw new Error('JSON must contain "nodes" and "edges" arrays.')
     }
 
-    return normalizeState(parsed)
+    return normalizeGraphState(parsed)
   }
 
   export function serializeText(state: GraphState): string {
-    const normalized = normalizeState(state)
+    const normalized = normalizeGraphState(state)
     const nodeById = new Map(normalized.nodes.map((node) => [node.id, node]))
     const containsEdges = normalized.edges.filter((edge) => normalizeEdgeKind(edge.data?.kind) === 'contains')
     const afterEdges = normalized.edges.filter((edge) => normalizeEdgeKind(edge.data?.kind) === 'after')
@@ -555,119 +548,12 @@ export namespace EstimationsGraph {
       report.normalizedValues += 1
     }
 
-    const state = normalizeState({
+    const state = normalizeGraphState({
       nodes,
       edges,
       workers,
     })
     return { state, report }
-  }
-
-  export function loadFromStorage(storage: Storage = localStorage): GraphState {
-    const fallback = createInitialState()
-    const saved = storage.getItem(STORAGE_KEY)
-    if (!saved) return fallback
-
-    try {
-      return deserialize(saved)
-    } catch (e) {
-      console.error('Failed to parse saved graph', e)
-      return fallback
-    }
-  }
-
-  export function saveToStorage(state: GraphState, storage: Storage = localStorage): void {
-    storage.setItem(STORAGE_KEY, JSON.stringify(state))
-  }
-
-  export function clearStorage(storage: Storage = localStorage): void {
-    storage.removeItem(STORAGE_KEY)
-  }
-
-  export function hasMeaningfulDraft(storage: Storage = localStorage): boolean {
-    const raw = storage.getItem(STORAGE_KEY)
-    if (!raw) return false
-
-    try {
-      const draft = deserialize(raw)
-      return getStateSignature(draft) !== getStateSignature(createInitialState())
-    } catch {
-      return false
-    }
-  }
-
-  export function archiveDraftProject(storage: Storage = localStorage): SavedProject | null {
-    if (!hasMeaningfulDraft(storage)) return null
-    const draftState = loadFromStorage(storage)
-    const id = createProjectId()
-    return saveProject(
-      {
-        id,
-        name: `drafts/${id}`,
-        state: draftState,
-      },
-      storage
-    )
-  }
-
-  export function listProjects(storage: Storage = localStorage): SavedProject[] {
-    const raw = storage.getItem(PROJECTS_STORAGE_KEY)
-    if (!raw) return []
-
-    try {
-      const parsed = JSON.parse(raw) as SavedProject[]
-      if (!Array.isArray(parsed)) return []
-      return parsed
-        .map((project) => ({
-          ...project,
-          state: normalizeState(project.state),
-        }))
-        .filter((project) => project.name)
-    } catch {
-      return []
-    }
-  }
-
-  export function getProjectById(id: string, storage: Storage = localStorage): SavedProject | null {
-    const projects = listProjects(storage)
-    return projects.find((project) => project.id === id) ?? null
-  }
-
-  export function saveProject(
-    input: { id?: string; name: string; state: GraphState },
-    storage: Storage = localStorage
-  ): SavedProject {
-    const projects = listProjects(storage)
-    const projectId = input.id ?? createProjectId()
-    const now = new Date().toISOString()
-    const tickets = extractTickets(input.state)
-
-    const saved: SavedProject = {
-      id: projectId,
-      name: input.name.trim(),
-      updatedAt: now,
-      tickets,
-      state: input.state,
-    }
-
-    const existingIndex = projects.findIndex((project) => project.id === projectId)
-    if (existingIndex >= 0) {
-      projects[existingIndex] = saved
-    } else {
-      projects.unshift(saved)
-    }
-
-    storage.setItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects))
-    return saved
-  }
-
-  function extractTickets(state: GraphState): string[] {
-    const unique = new Set<string>()
-    state.nodes.forEach((node) => {
-      const label = node.data?.label?.trim()
-      if (label) unique.add(label)
-    })
-    return Array.from(unique)
   }
 
   /**
@@ -680,8 +566,8 @@ export namespace EstimationsGraph {
    * Example return value:
    * `{"nodes":[{"label":"Total Project","estimate":0,"risk":"none","priority":"medium","limit":null,"assigneeIds":[],"requiredSkills":[]}],"edges":[],"workers":[]}`
    */
-  function getStateSignature(state: GraphState): string {
-    const normalized = normalizeState(state)
+  export function getStateSignature(state: GraphState): string {
+    const normalized = normalizeGraphState(state)
     return JSON.stringify({
       nodes: [...normalized.nodes].sort((a, b) => a.id.localeCompare(b.id)).map((node) => ({
         label: node.data.label,
@@ -710,7 +596,7 @@ export namespace EstimationsGraph {
     })
   }
 
-  function normalizeState(state: Partial<GraphState>): GraphState {
+  export function normalizeGraphState(state: Partial<GraphState>): GraphState {
     const rawNodes = Array.isArray(state.nodes) ? (state.nodes as GraphNode[]) : []
     const rawEdges = Array.isArray(state.edges) ? (state.edges as GraphEdge[]) : []
     return {

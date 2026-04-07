@@ -1,66 +1,99 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { Link, Route, Routes, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Link, Route, Routes, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import FlowDemo from './components/FlowDemo'
 import { LandingPage } from './pages/LandingPage'
 import { LandingPageV2 } from './pages/LandingPageV2'
 import { TimelineView } from './components/TimelineView'
 import { WorkerPoolEditor } from './components/WorkerPoolEditor'
 import { EstimationsGraph } from './utils/estimations-graph'
+import { projectManager } from './utils/project-manager'
+import type { ProjectManager } from './utils/project-manager'
 import { decodeSharePayload, isShareSupported, SHARE_QUERY_PARAM } from './utils/share-url'
 import { SampleProject } from './utils/sample-project'
 import { collectKnownSkills } from './utils/skills'
 import { useClickOutside } from './utils/use-click-outside'
 
+function getProjectPath(projectId: string, section?: 'workers' | 'timeline', query?: URLSearchParams): string {
+  const basePath = `/projects/${projectId}`
+  const withSection = section ? `${basePath}/${section}` : basePath
+  const queryString = query?.toString()
+  return queryString ? `${withSection}?${queryString}` : withSection
+}
+
+function useProjectRouteParam(): string {
+  const { pathname } = useLocation()
+  const projectPath = pathname.replace(/^\/projects\//, '')
+  return projectPath.replace(/\/(workers|timeline)$/, '')
+}
+
+function useProjectRouteSection(): 'editor' | 'workers' | 'timeline' {
+  const { pathname } = useLocation()
+  const projectPath = pathname.replace(/^\/projects\//, '')
+  if (projectPath.endsWith('/workers')) return 'workers'
+  if (projectPath.endsWith('/timeline')) return 'timeline'
+  return 'editor'
+}
+
+function ProjectRoute() {
+  const section = useProjectRouteSection()
+
+  if (section === 'workers') return <WorkersPage />
+  if (section === 'timeline') return <TimelinePage />
+  return <EditorPage />
+}
+
+function NewProjectPage() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const template = searchParams.get('template')
+  const hasCreatedDraftRef = useRef(false)
+
+  useEffect(() => {
+    if (hasCreatedDraftRef.current) return
+    hasCreatedDraftRef.current = true
+    const saved = projectManager.createDraftProject(
+      template === 'sample' ? SampleProject.createState() : undefined
+    )
+    navigate(getProjectPath(saved.id), { replace: true })
+  }, [navigate, template])
+
+  return (
+    <div className="h-screen w-screen bg-gray-50 flex items-center justify-center">
+      <div className="bg-white border rounded p-6 text-sm text-gray-600">Creating draft...</div>
+    </div>
+  )
+}
+
 function EditorPage() {
   const navigate = useNavigate()
-  const { projectId = 'new' } = useParams()
+  const projectId = useProjectRouteParam()
   const [searchParams] = useSearchParams()
   const focusNodeId = searchParams.get('focusNodeId')
-  const template = searchParams.get('template')
-
-  const isNew = projectId === 'new'
-  const loadedProject = useMemo(() => {
-    if (isNew) return null
-    return EstimationsGraph.getProjectById(projectId)
-  }, [isNew, projectId])
-
-  const createDraftState = useCallback(() => {
-    if (template === 'sample') return SampleProject.createState()
-    return EstimationsGraph.loadFromStorage()
-  }, [template])
-
-  const draftProjectName = template === 'sample' ? 'Sample Draft' : null
+  const loadedProject = useMemo(() => projectManager.getProject(projectId), [projectId])
 
   const [activeProjectId, setActiveProjectId] = useState<string | null>(loadedProject?.id ?? null)
-  const [activeProjectName, setActiveProjectName] = useState<string | null>(loadedProject?.name ?? draftProjectName)
-  const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() => loadedProject?.state ?? createDraftState())
+  const [activeProjectName, setActiveProjectName] = useState<string | null>(loadedProject?.name ?? null)
+  const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() => loadedProject?.state ?? EstimationsGraph.createInitialState())
   const [editorVersion, setEditorVersion] = useState(0)
 
   useEffect(() => {
-    if (isNew) {
-      setActiveProjectId(null)
-      setActiveProjectName(draftProjectName)
-      setEditorState(createDraftState())
-      setEditorVersion((v) => v + 1)
-      return
-    }
     if (!loadedProject) return
     setActiveProjectId(loadedProject.id)
     setActiveProjectName(loadedProject.name)
     setEditorState(loadedProject.state)
     setEditorVersion((v) => v + 1)
-  }, [createDraftState, draftProjectName, isNew, loadedProject])
+  }, [loadedProject])
 
-  const openProject = useCallback((saved: EstimationsGraph.SavedProject) => {
+  const openProject = useCallback((saved: ProjectManager.Project) => {
     setActiveProjectId(saved.id)
     setActiveProjectName(saved.name)
-    navigate(`/projects/${saved.id}`, { replace: true })
+    navigate(getProjectPath(saved.id), { replace: true })
   }, [navigate])
 
   const onSaveProject = useCallback((name: string, state: EstimationsGraph.GraphState) => {
-    const saved = EstimationsGraph.saveProject({
-      id: activeProjectId ?? undefined,
+    const saved = projectManager.saveProject({
+      projectId: activeProjectId ?? undefined,
       name,
       state,
     })
@@ -68,7 +101,7 @@ function EditorPage() {
   }, [activeProjectId, openProject])
 
   const onSaveProjectAsNew = useCallback((name: string, state: EstimationsGraph.GraphState) => {
-    const saved = EstimationsGraph.saveProject({
+    const saved = projectManager.saveProject({
       name,
       state,
     })
@@ -77,15 +110,15 @@ function EditorPage() {
 
   const onRenameProject = useCallback((name: string, state: EstimationsGraph.GraphState) => {
     if (!activeProjectId) return
-    const saved = EstimationsGraph.saveProject({
-      id: activeProjectId,
+    const saved = projectManager.saveProject({
+      projectId: activeProjectId,
       name,
       state,
     })
     openProject(saved)
   }, [activeProjectId, openProject])
 
-  if (!isNew && !loadedProject) {
+  if (!loadedProject) {
     return (
       <MissingProject />
     )
@@ -98,15 +131,15 @@ function EditorPage() {
           <FlowDemo
             key={`${activeProjectId ?? 'draft'}-${editorVersion}`}
             initialState={editorState}
+            activeProjectId={activeProjectId}
             activeProjectName={activeProjectName}
-            isSavedProject={Boolean(activeProjectId)}
             focusNodeId={focusNodeId}
             onSaveProject={onSaveProject}
             onSaveProjectAsNew={onSaveProjectAsNew}
             onRenameProject={onRenameProject}
             onOpenProjects={() => navigate('/projects')}
-            onOpenWorkers={() => navigate(activeProjectId ? `/projects/${activeProjectId}/workers` : '/projects/new/workers')}
-            onOpenTimeline={() => navigate(activeProjectId ? `/projects/${activeProjectId}/timeline` : '/projects/new/timeline')}
+            onOpenWorkers={() => activeProjectId && navigate(getProjectPath(activeProjectId, 'workers'))}
+            onOpenTimeline={() => activeProjectId && navigate(getProjectPath(activeProjectId, 'timeline'))}
           />
         </ReactFlowProvider>
       </div>
@@ -119,7 +152,7 @@ function ProjectsPage() {
   const [search, setSearch] = useState('')
   const [projectsMenuOpen, setProjectsMenuOpen] = useState(false)
   const projectsMenuRef = useRef<HTMLDivElement | null>(null)
-  const projects = useMemo(() => EstimationsGraph.listProjects(), [])
+  const projects = useMemo(() => projectManager.getProjects(), [])
 
   const filteredProjects = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -129,8 +162,6 @@ function ProjectsPage() {
 
   const onStartFreshProject = useCallback(() => {
     setProjectsMenuOpen(false)
-    EstimationsGraph.archiveDraftProject()
-    EstimationsGraph.clearStorage()
     navigate('/projects/new')
   }, [navigate])
 
@@ -199,7 +230,7 @@ function ProjectsPage() {
                 <p className="text-xs text-gray-500 truncate">Tickets: {project.tickets.slice(0, 6).join(', ') || 'None'}</p>
               </div>
               <button
-                onClick={() => navigate(`/projects/${project.id}`)}
+                onClick={() => navigate(getProjectPath(project.id))}
                 className="px-3 py-1.5 text-sm font-semibold rounded bg-blue-600 text-white hover:bg-blue-700"
               >
                 Open
@@ -214,30 +245,18 @@ function ProjectsPage() {
 
 function WorkersPage() {
   const navigate = useNavigate()
-  const { projectId = '' } = useParams()
-  const isDraft = projectId === 'new'
-  const initialProject = useMemo(() => {
-    if (isDraft) return null
-    return EstimationsGraph.getProjectById(projectId)
-  }, [isDraft, projectId])
+  const projectId = useProjectRouteParam()
+  const initialProject = useMemo(() => projectManager.getProject(projectId), [projectId])
   const [project, setProject] = useState(initialProject)
-  const [draftState, setDraftState] = useState<EstimationsGraph.GraphState>(() => (
-    isDraft ? EstimationsGraph.loadFromStorage() : EstimationsGraph.createInitialState()
-  ))
 
   useEffect(() => {
     setProject(initialProject)
   }, [initialProject])
 
-  useEffect(() => {
-    if (!isDraft) return
-    setDraftState(EstimationsGraph.loadFromStorage())
-  }, [isDraft])
+  if (!project) return <MissingProject />
 
-  if (!isDraft && !project) return <MissingProject />
-
-  const state = isDraft ? draftState : project!.state
-  const projectName = isDraft ? 'Unsaved Draft' : project!.name
+  const state = project.state
+  const projectName = project.name
 
   const onWorkersChange = (workers: EstimationsGraph.WorkerDto[]) => {
     const validIds = new Set(workers.map((worker) => worker.id))
@@ -255,13 +274,7 @@ function WorkersPage() {
       nodes: nextNodes,
     }
 
-    if (isDraft) {
-      EstimationsGraph.saveToStorage(nextState)
-      setDraftState(nextState)
-      return
-    }
-
-    const saved = EstimationsGraph.saveProject({ id: project!.id, name: project!.name, state: nextState })
+    const saved = projectManager.saveProject({ projectId: project!.id, name: project!.name, state: nextState })
     setProject(saved)
   }
 
@@ -272,13 +285,13 @@ function WorkersPage() {
           <h1 className="text-2xl font-bold text-gray-800">Workers: {projectName}</h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(isDraft ? '/projects/new/timeline' : `/projects/${project!.id}/timeline`)}
+              onClick={() => navigate(getProjectPath(project!.id, 'timeline'))}
               className="px-3 py-1.5 text-sm font-semibold rounded bg-fuchsia-600 text-white hover:bg-fuchsia-700"
             >
               Timeline
             </button>
             <button
-              onClick={() => navigate(isDraft ? '/projects/new' : `/projects/${project!.id}`)}
+              onClick={() => navigate(getProjectPath(project!.id))}
               className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white hover:bg-gray-900"
             >
               Back to Editor
@@ -298,33 +311,27 @@ function WorkersPage() {
 
 function TimelinePage() {
   const navigate = useNavigate()
-  const { projectId = '' } = useParams()
-  const isDraft = projectId === 'new'
-  const project = useMemo(() => {
-    if (isDraft) return null
-    return EstimationsGraph.getProjectById(projectId)
-  }, [isDraft, projectId])
-  const state = useMemo(() => (
-    isDraft ? EstimationsGraph.loadFromStorage() : project?.state ?? null
-  ), [isDraft, project])
+  const projectId = useProjectRouteParam()
+  const project = useMemo(() => projectManager.getProject(projectId), [projectId])
+  const state = useMemo(() => project?.state ?? null, [project])
 
-  if (!isDraft && !project) return <MissingProject />
+  if (!project) return <MissingProject />
   if (!state) return <MissingProject />
 
   return (
     <div className="h-screen w-screen bg-gray-50 overflow-auto">
       <div className="max-w-6xl mx-auto p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-bold text-gray-800">Timeline: {isDraft ? 'Unsaved Draft' : project!.name}</h1>
+          <h1 className="text-2xl font-bold text-gray-800">Timeline: {project.name}</h1>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => navigate(isDraft ? '/projects/new/workers' : `/projects/${project!.id}/workers`)}
+              onClick={() => navigate(getProjectPath(project!.id, 'workers'))}
               className="px-3 py-1.5 text-sm font-semibold rounded bg-cyan-600 text-white hover:bg-cyan-700"
             >
               Workers
             </button>
             <button
-              onClick={() => navigate(isDraft ? '/projects/new' : `/projects/${project!.id}`)}
+              onClick={() => navigate(getProjectPath(project!.id))}
               className="px-3 py-1.5 text-sm font-semibold rounded bg-gray-800 text-white hover:bg-gray-900"
             >
               Back to Editor
@@ -334,7 +341,7 @@ function TimelinePage() {
 
         <TimelineView
           state={state}
-          onTaskClick={(nodeId) => navigate(isDraft ? `/projects/new?focusNodeId=${nodeId}` : `/projects/${project!.id}?focusNodeId=${nodeId}`)}
+          onTaskClick={(nodeId) => navigate(getProjectPath(project!.id, undefined, new URLSearchParams({ focusNodeId: nodeId })))}
         />
       </div>
     </div>
@@ -391,11 +398,8 @@ function SharePage() {
 
   const onCreateDraft = useCallback(() => {
     if (!importResult) return
-    if (EstimationsGraph.hasMeaningfulDraft() && !window.confirm('Replace the current draft with this shared project?')) {
-      return
-    }
-    EstimationsGraph.saveToStorage(importResult.state)
-    navigate('/projects/new')
+    const saved = projectManager.createDraftProject(importResult.state)
+    navigate(getProjectPath(saved.id))
   }, [importResult, navigate])
 
   return (
@@ -485,12 +489,8 @@ export default function App() {
       <Route path="/landing-v1" element={<LandingPage />} />
       <Route path="/share" element={<SharePage />} />
       <Route path="/projects" element={<ProjectsPage />} />
-      <Route path="/projects/new" element={<EditorPage />} />
-      <Route path="/projects/new/workers" element={<WorkersPage />} />
-      <Route path="/projects/new/timeline" element={<TimelinePage />} />
-      <Route path="/projects/:projectId" element={<EditorPage />} />
-      <Route path="/projects/:projectId/workers" element={<WorkersPage />} />
-      <Route path="/projects/:projectId/timeline" element={<TimelinePage />} />
+      <Route path="/projects/new" element={<NewProjectPage />} />
+      <Route path="/projects/*" element={<ProjectRoute />} />
     </Routes>
   )
 }
