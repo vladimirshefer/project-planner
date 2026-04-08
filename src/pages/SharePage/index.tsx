@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { EstimationsGraph } from '../../utils/estimations-graph'
 import { projectManager } from '../../utils/project-manager'
-import { decodeSharePayload, isShareSupported, SHARE_QUERY_PARAM } from '../../utils/share-url'
+import { decodeSharePayload, isShareSupported } from '../../utils/share-url'
 
-export function SharePage() {
+export function SharePage({
+  payload,
+}: {
+  payload: string
+}) {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const payload = searchParams.get(SHARE_QUERY_PARAM)?.trim() ?? ''
   const [importResult, setImportResult] = useState<EstimationsGraph.TextImportResult | null>(null)
   const [importError, setImportError] = useState('')
   const [isImporting, setIsImporting] = useState(true)

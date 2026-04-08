@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { SampleProject } from '../../utils/sample-project'
 import { projectManager } from '../../utils/project-manager'
 
-export function NewProjectPage() {
+export function NewProjectPage({
+  template,
+}: {
+  template: string | null
+}) {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const template = searchParams.get('template')
   const hasCreatedDraftRef = useRef(false)
 
   useEffect(() => {

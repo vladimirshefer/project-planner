@@ -1,20 +1,21 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import FlowDemo from '../../components/FlowDemo'
 import { EstimationsGraph } from '../../utils/estimations-graph'
 import { projectManager } from '../../utils/project-manager'
 import type { ProjectManager } from '../../utils/project-manager'
 import { MissingProjectPage } from '../MissingProjectPage'
-import { decodeProjectIdParam } from '../project-routes'
 
-export function EditorProjectPage() {
+export function EditorProjectPage({
+  projectId,
+  focusNodeId,
+}: {
+  projectId: string
+  focusNodeId: string | null
+}) {
   const navigate = useNavigate()
-  const { projectId: projectIdParam } = useParams<{ projectId: string }>()
-  const [searchParams] = useSearchParams()
-  const focusNodeId = searchParams.get('focusNodeId')
-  const projectId = useMemo(() => decodeProjectIdParam(projectIdParam), [projectIdParam])
-  const loadedProject = useMemo(() => projectId ? projectManager.getProject(projectId) : null, [projectId])
+  const loadedProject = useMemo(() => projectManager.getProject(projectId), [projectId])
 
   const [activeProjectId, setActiveProjectId] = useState<string | null>(loadedProject?.id ?? null)
   const [activeProjectName, setActiveProjectName] = useState<string | null>(loadedProject?.name ?? null)
@@ -62,7 +63,7 @@ export function EditorProjectPage() {
     openProject(saved)
   }, [activeProjectId, openProject])
 
-  if (!projectId || !loadedProject) {
+  if (!loadedProject) {
     return <MissingProjectPage />
   }
 

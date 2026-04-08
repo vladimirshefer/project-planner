@@ -1,18 +1,19 @@
 import { useMemo } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { TimelineView } from '../../components/TimelineView'
 import { projectManager } from '../../utils/project-manager'
 import { MissingProjectPage } from '../MissingProjectPage'
-import { decodeProjectIdParam } from '../project-routes'
 
-export function TimelinePage() {
+export function TimelinePage({
+  projectId,
+}: {
+  projectId: string
+}) {
   const navigate = useNavigate()
-  const { projectId: projectIdParam } = useParams<{ projectId: string }>()
-  const projectId = useMemo(() => decodeProjectIdParam(projectIdParam), [projectIdParam])
-  const project = useMemo(() => projectId ? projectManager.getProject(projectId) : null, [projectId])
+  const project = useMemo(() => projectManager.getProject(projectId), [projectId])
   const state = useMemo(() => project?.state ?? null, [project])
 
-  if (!projectId || !project) return <MissingProjectPage />
+  if (!project) return <MissingProjectPage />
   if (!state) return <MissingProjectPage />
 
   return (

@@ -1,24 +1,25 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { WorkerPoolEditor } from '../../components/WorkerPoolEditor'
 import { EstimationsGraph } from '../../utils/estimations-graph'
 import { projectManager } from '../../utils/project-manager'
 import { collectKnownSkills } from '../../utils/skills'
 import { MissingProjectPage } from '../MissingProjectPage'
-import { decodeProjectIdParam } from '../project-routes'
 
-export function WorkersPage() {
+export function WorkersPage({
+  projectId,
+}: {
+  projectId: string
+}) {
   const navigate = useNavigate()
-  const { projectId: projectIdParam } = useParams<{ projectId: string }>()
-  const projectId = useMemo(() => decodeProjectIdParam(projectIdParam), [projectIdParam])
-  const initialProject = useMemo(() => projectId ? projectManager.getProject(projectId) : null, [projectId])
+  const initialProject = useMemo(() => projectManager.getProject(projectId), [projectId])
   const [project, setProject] = useState(initialProject)
 
   useEffect(() => {
     setProject(initialProject)
   }, [initialProject])
 
-  if (!projectId || !project) return <MissingProjectPage />
+  if (!project) return <MissingProjectPage />
 
   const state = project.state
   const projectName = project.name
