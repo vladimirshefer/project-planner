@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ReactFlowProvider } from '@xyflow/react'
-import { useNavigate } from 'react-router-dom'
+import {useCallback, useEffect, useMemo, useState} from 'react'
+import {ReactFlowProvider} from '@xyflow/react'
+import {useNavigate} from 'react-router-dom'
 import FlowDemo from '../../components/FlowDemo'
-import { EstimationsGraph } from '../../utils/estimations-graph'
-import { projectManager } from '../../utils/project-manager'
-import type { ProjectManager } from '../../utils/project-manager'
-import { MissingProjectPage } from '../MissingProjectPage'
+import {EstimationsGraph} from '../../utils/estimations-graph'
+import {projectManager} from '../../utils/project-manager'
+import {MissingProjectPage} from '../MissingProjectPage'
 
 export function EditorProjectPage({
   projectId,
@@ -16,52 +15,46 @@ export function EditorProjectPage({
 }) {
   const navigate = useNavigate()
   const loadedProject = useMemo(() => projectManager.getProject(projectId), [projectId])
-
-  const [activeProjectId, setActiveProjectId] = useState<string | null>(loadedProject?.id ?? null)
-  const [activeProjectName, setActiveProjectName] = useState<string | null>(loadedProject?.name ?? null)
+  const [projectName, setProjectName] = useState<string | null>(loadedProject?.name ?? null)
   const [editorState, setEditorState] = useState<EstimationsGraph.GraphState>(() => loadedProject?.state ?? EstimationsGraph.createInitialState())
   const [editorVersion, setEditorVersion] = useState(0)
 
   useEffect(() => {
     if (!loadedProject) return
-    setActiveProjectId(loadedProject.id)
-    setActiveProjectName(loadedProject.name)
+    setProjectName(loadedProject.name)
     setEditorState(loadedProject.state)
     setEditorVersion((v) => v + 1)
   }, [loadedProject])
 
-  const openProject = useCallback((saved: ProjectManager.Project) => {
-    setActiveProjectId(saved.id)
-    setActiveProjectName(saved.name)
-    navigate(`/projects/${encodeURIComponent(saved.id)}`, { replace: true })
-  }, [navigate])
+  function openProjectId(projectId: string) {
+    navigate(`/projects/${encodeURIComponent(projectId)}`)
+  }
 
-  const onSaveProject = useCallback((name: string, state: EstimationsGraph.GraphState) => {
-    const saved = projectManager.saveProject({
-      projectId: activeProjectId ?? undefined,
-      name,
-      state,
-    })
-    openProject(saved)
-  }, [activeProjectId, openProject])
+  function onSaveProject(name: string, state: EstimationsGraph.GraphState) {
+      const saved = projectManager.saveProject({
+          projectId: projectId,
+          name,
+          state,
+      })
+      openProjectId(saved.id)
+  }
 
-  const onSaveProjectAsNew = useCallback((name: string, state: EstimationsGraph.GraphState) => {
-    const saved = projectManager.saveProject({
-      name,
-      state,
-    })
-    openProject(saved)
-  }, [openProject])
+  function onSaveProjectAsNew(name: string, state: EstimationsGraph.GraphState) {
+      const saved = projectManager.saveProject({
+          name,
+          state,
+      })
+      openProjectId(saved.id)
+  }
 
-  const onRenameProject = useCallback((name: string, state: EstimationsGraph.GraphState) => {
-    if (!activeProjectId) return
-    const saved = projectManager.saveProject({
-      projectId: activeProjectId,
-      name,
-      state,
-    })
-    openProject(saved)
-  }, [activeProjectId, openProject])
+  function onRenameProject(name: string, state: EstimationsGraph.GraphState) {
+      const saved = projectManager.saveProject({
+          projectId: projectId,
+          name,
+          state,
+      })
+      openProjectId(saved.id)
+  }
 
   if (!loadedProject) {
     return <MissingProjectPage />
@@ -72,17 +65,14 @@ export function EditorProjectPage({
       <div className="flex-grow relative">
         <ReactFlowProvider>
           <FlowDemo
-            key={`${activeProjectId ?? 'draft'}-${editorVersion}`}
+            key={`${projectId ?? 'draft'}-${editorVersion}`}
             initialState={editorState}
-            activeProjectId={activeProjectId}
-            activeProjectName={activeProjectName}
+            projectId={projectId}
+            projectName={projectName}
             focusNodeId={focusNodeId}
-            onSaveProject={onSaveProject}
+            onSaveProject={(name, project) => onSaveProject(name, project)}
             onSaveProjectAsNew={onSaveProjectAsNew}
             onRenameProject={onRenameProject}
-            onOpenProjects={() => navigate('/projects')}
-            onOpenWorkers={() => activeProjectId && navigate(`/projects/${encodeURIComponent(activeProjectId)}/workers`)}
-            onOpenTimeline={() => activeProjectId && navigate(`/projects/${encodeURIComponent(activeProjectId)}/timeline`)}
           />
         </ReactFlowProvider>
       </div>

@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   Background,
@@ -23,15 +23,9 @@ import {
 import '@xyflow/react/dist/style.css'
 import dagre from 'dagre'
 import {
-  LuCalendarRange,
-  LuCode,
-  LuFolderOpen,
   LuLink,
-  LuPin,
   LuPlus,
-  LuSave,
   LuTrash2,
-  LuUsers,
   LuWorkflow
 } from 'react-icons/lu'
 import { ProjectStats } from '../utils/project-stats'
@@ -41,8 +35,8 @@ import { projectManager } from '../utils/project-manager'
 import { buildShareUrl, encodeSharePayload, isShareSupported, isShareUrlTooLarge } from '../utils/share-url'
 import { NodeView } from '../pages/EditorPage/NodeView'
 import { EdgeView } from './EdgeView'
+import { EditorNavbar } from './EditorNavbar'
 import { collectKnownSkills } from '../utils/skills'
-import { useClickOutside } from '../utils/use-click-outside'
 
 type NodeData = EstimationsGraph.NodeData
 type EdgeData = EstimationsGraph.EdgeData
@@ -254,38 +248,27 @@ const edgeTypes = {
 
 export default function FlowDemo({
   initialState,
-  activeProjectId,
-  activeProjectName,
+  projectId,
+  projectName,
   focusNodeId,
   onSaveProject,
   onSaveProjectAsNew,
-  onRenameProject,
-  onOpenProjects,
-  onOpenWorkers,
-  onOpenTimeline,
+  onRenameProject
 }: {
   initialState?: EstimationsGraph.GraphState
-  activeProjectId?: string | null
-  activeProjectName?: string | null
+  projectId?: string | null
+  projectName?: string | null
   focusNodeId?: string | null
   onSaveProject?: (name: string, state: EstimationsGraph.GraphState) => void
   onSaveProjectAsNew?: (name: string, state: EstimationsGraph.GraphState) => void
   onRenameProject?: (name: string, state: EstimationsGraph.GraphState) => void
-  onOpenProjects?: () => void
-  onOpenWorkers?: () => void
-  onOpenTimeline?: () => void
 }) {
-  const [isSidebarPinned, setIsSidebarPinned] = useState(false)
-  const [isSidebarHovered, setIsSidebarHovered] = useState(false)
-  const [saveMenuOpen, setSaveMenuOpen] = useState(false)
-  const saveMenuRef = useRef<HTMLDivElement | null>(null)
   const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false)
   const [modalText, setModalText] = useState('')
   const [importError, setImportError] = useState('')
   const [importReport, setImportReport] = useState<EstimationsGraph.ImportReport | null>(null)
   const [shareStatus, setShareStatus] = useState<string | null>(null)
   const [isSharing, setIsSharing] = useState(false)
-  const isSidebarExpanded = isSidebarPinned || isSidebarHovered
   const iconClassName = 'h-4 w-4 shrink-0'
 
   const bootstrapState = useMemo(
@@ -302,16 +285,14 @@ export default function FlowDemo({
 
   const { fitView, screenToFlowPosition, setCenter } = useReactFlow()
 
-  useClickOutside(saveMenuRef, saveMenuOpen, () => setSaveMenuOpen(false))
-
   useEffect(() => {
-    if (!activeProjectId || !activeProjectName?.trim()) return
+    if (!projectId || !projectName?.trim()) return
     projectManager.saveProject({
-      projectId: activeProjectId,
-      name: activeProjectName.trim(),
+      projectId: projectId,
+      name: projectName.trim(),
       state: { nodes, edges, workers },
     })
-  }, [activeProjectId, activeProjectName, nodes, edges, workers])
+  }, [projectId, projectName, nodes, edges, workers])
 
   useEffect(() => {
     if (!focusNodeId) return
@@ -450,15 +431,14 @@ export default function FlowDemo({
   }, [])
 
   const onSaveClick = useCallback(() => {
-    setSaveMenuOpen(false)
     const state: EstimationsGraph.GraphState = { nodes, edges, workers }
 
-    if (activeProjectId && activeProjectName?.trim() && onSaveProject) {
-      onSaveProject(activeProjectName.trim(), state)
+    if (projectId && projectName?.trim() && onSaveProject) {
+      onSaveProject(projectName.trim(), state)
       return
     }
 
-    const suggestedName = activeProjectName?.trim() || 'New Project'
+    const suggestedName = projectName?.trim() || 'New Project'
     const name = promptForProjectName(suggestedName)
     if (!name) return
     if (onSaveProject) {
@@ -466,12 +446,12 @@ export default function FlowDemo({
     } else {
       projectManager.saveProject({ name, state })
     }
-  }, [activeProjectId, activeProjectName, nodes, edges, workers, onSaveProject, promptForProjectName])
+  }, [projectId, projectName, nodes, edges, workers, onSaveProject, promptForProjectName])
 
   const onRenameClick = useCallback(() => {
-    if (!activeProjectId || !activeProjectName?.trim()) return
+    if (!projectId || !projectName?.trim()) return
 
-    const name = promptForProjectName(activeProjectName.trim())
+    const name = promptForProjectName(projectName.trim())
     if (!name) return
 
     const state: EstimationsGraph.GraphState = { nodes, edges, workers }
@@ -483,10 +463,10 @@ export default function FlowDemo({
     if (onSaveProject) {
       onSaveProject(name, state)
     }
-  }, [activeProjectId, activeProjectName, nodes, edges, workers, onRenameProject, onSaveProject, promptForProjectName])
+  }, [projectId, projectName, nodes, edges, workers, onRenameProject, onSaveProject, promptForProjectName])
 
   const onSaveAsNewClick = useCallback(() => {
-    const suggestedName = activeProjectName?.trim() || 'New Project'
+    const suggestedName = projectName?.trim() || 'New Project'
     const name = promptForProjectName(suggestedName)
     if (!name) return
 
@@ -497,7 +477,7 @@ export default function FlowDemo({
     }
 
     projectManager.saveProject({ name, state })
-  }, [activeProjectName, nodes, edges, workers, onSaveProjectAsNew, promptForProjectName])
+  }, [projectName, nodes, edges, workers, onSaveProjectAsNew, promptForProjectName])
 
   const onShareClick = useCallback(async () => {
     setShareStatus(null)
@@ -561,122 +541,13 @@ export default function FlowDemo({
             <Controls />
             <Background gap={12} size={1} />
             <Panel position="top-left" className="top-[7.5rem] left-3 m-0 p-0 sm:top-4 sm:left-4">
-              <div
-                className={`bg-white/95 backdrop-blur-sm border shadow-md rounded-lg transition-all duration-200 ${
-                  isSidebarExpanded ? 'w-44' : 'w-12'
-                }`}
-                onMouseEnter={() => setIsSidebarHovered(true)}
-                onMouseLeave={() => setIsSidebarHovered(false)}
-              >
-                <div className="p-1 flex flex-col gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setIsSidebarPinned((value) => !value)}
-                    title={isSidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
-                    className="h-10 w-full rounded-md border border-transparent hover:bg-gray-100 text-gray-600 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
-                  >
-                    <LuPin className={iconClassName} aria-hidden="true" />
-                    {isSidebarExpanded && <span>{isSidebarPinned ? 'Unpin' : 'Pin'}</span>}
-                  </button>
-
-                  <div className="relative" ref={saveMenuRef}>
-                    <div className="flex items-stretch gap-0">
-                      <button
-                        type="button"
-                        onClick={onSaveClick}
-                        title="Save (Ctrl+S)"
-                        className={`h-10 ${isSidebarExpanded ? 'flex-1 rounded-l-md' : 'w-full rounded-md'} bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold flex items-center gap-2 px-3 transition-colors`}
-                      >
-                        <LuSave className={iconClassName} aria-hidden="true" />
-                        {isSidebarExpanded && <span>Save</span>}
-                      </button>
-                      {isSidebarExpanded && (
-                        <button
-                          type="button"
-                          onClick={() => setSaveMenuOpen((value) => !value)}
-                          className="h-10 w-9 rounded-r-md border-l border-teal-500 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold transition-colors"
-                          aria-label="Open save options"
-                        >
-                          ▾
-                        </button>
-                      )}
-                    </div>
-
-                    {saveMenuOpen && isSidebarExpanded && (
-                      <div className="absolute left-0 right-0 mt-2 rounded border bg-white shadow-lg z-10 overflow-hidden">
-                        {activeProjectId && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSaveMenuOpen(false)
-                              onRenameClick()
-                            }}
-                            className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                          >
-                            Rename Project
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSaveMenuOpen(false)
-                            onSaveAsNewClick()
-                          }}
-                          className="w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          Fork Project
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {onOpenProjects && (
-                    <button
-                      type="button"
-                      onClick={onOpenProjects}
-                      title="Projects"
-                      className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
-                    >
-                      <LuFolderOpen className={iconClassName} aria-hidden="true" />
-                      {isSidebarExpanded && <span>Projects</span>}
-                    </button>
-                  )}
-
-                  {onOpenWorkers && (
-                    <button
-                      type="button"
-                      onClick={onOpenWorkers}
-                      title="Workers"
-                      className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
-                    >
-                      <LuUsers className={iconClassName} aria-hidden="true" />
-                      {isSidebarExpanded && <span>Workers</span>}
-                    </button>
-                  )}
-
-                  {onOpenTimeline && (
-                    <button
-                      type="button"
-                      onClick={onOpenTimeline}
-                      title="Timeline"
-                      className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
-                    >
-                      <LuCalendarRange className={iconClassName} aria-hidden="true" />
-                      {isSidebarExpanded && <span>Timeline</span>}
-                    </button>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={openCodeEditor}
-                    title="Edit Code"
-                    className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
-                  >
-                    <LuCode className={iconClassName} aria-hidden="true" />
-                    {isSidebarExpanded && <span>Edit Code</span>}
-                  </button>
-                </div>
-              </div>
+              <EditorNavbar
+                projectId={projectId}
+                onSave={onSaveClick}
+                onRename={onRenameClick}
+                onSaveAsNew={onSaveAsNewClick}
+                onEditCode={openCodeEditor}
+              />
             </Panel>
             <Panel
               position="top-right"
@@ -687,7 +558,7 @@ export default function FlowDemo({
                   <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-left">
                     <p className="text-xs font-semibold uppercase text-slate-500">Active project</p>
                     <p className="break-words text-xs font-semibold text-slate-800">
-                      {activeProjectName?.trim() || 'Unsaved Draft'}
+                      {projectName?.trim() || 'Unsaved Draft'}
                     </p>
                   </div>
 
