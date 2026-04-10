@@ -5,6 +5,7 @@ import { LandingPageV2 } from './pages/LandingPageV2'
 import { MissingProjectPage } from './pages/MissingProjectPage'
 import { NewProjectPage } from './pages/NewProjectPage'
 import { ProjectsPage } from './pages/ProjectsPage'
+import { ProjectCodePage } from './pages/ProjectCodePage'
 import { SharePage } from './pages/SharePage'
 import { TimelinePage } from './pages/TimelinePage'
 import { WorkersPage } from './pages/WorkersPage'
@@ -57,6 +58,19 @@ export default function App() {
               <EditorProjectPage
                 projectId={decodeRequiredProjectId(pathVariables.projectId!)}
                 focusNodeId={queryParameters.get('focusNodeId')}
+              />
+            )}
+          />
+        }
+      />
+      <Route
+        path="/project/:projectId/code"
+        element={
+          <ParameterizedPage
+            fallbackUrl="/not-found"
+            render={(pathVariables) => (
+              <ProjectCodePage
+                projectId={decodeRequiredProjectId(pathVariables.projectId!)}
               />
             )}
           />

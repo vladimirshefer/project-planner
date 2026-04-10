@@ -263,10 +263,6 @@ export default function FlowDemo({
   onSaveProjectAsNew?: (name: string, state: EstimationsGraph.GraphState) => void
   onRenameProject?: (name: string, state: EstimationsGraph.GraphState) => void
 }) {
-  const [isCodeEditorOpen, setIsCodeEditorOpen] = useState(false)
-  const [modalText, setModalText] = useState('')
-  const [importError, setImportError] = useState('')
-  const [importReport, setImportReport] = useState<EstimationsGraph.ImportReport | null>(null)
   const [shareStatus, setShareStatus] = useState<string | null>(null)
   const [isSharing, setIsSharing] = useState(false)
   const iconClassName = 'h-4 w-4 shrink-0'
@@ -342,36 +338,6 @@ export default function FlowDemo({
       setWorkers([])
     }
   }, [setNodes, setEdges, setWorkers])
-
-  const openCodeEditor = useCallback(() => {
-    setModalText(EstimationsGraph.serializeText({ nodes, edges, workers }))
-    setImportError('')
-    setImportReport(null)
-    setIsCodeEditorOpen(true)
-  }, [nodes, edges, workers])
-
-  const closeModal = useCallback(() => {
-    setIsCodeEditorOpen(false)
-    setImportError('')
-  }, [])
-
-  const onCodeApply = useCallback(() => {
-    try {
-      const result = EstimationsGraph.deserializeText(modalText)
-      setNodes(result.state.nodes as Node<NodeData>[])
-      setEdges(result.state.edges as Edge[])
-      setWorkers(result.state.workers ?? [])
-      setImportReport(result.report)
-      setIsCodeEditorOpen(false)
-      setImportError('')
-    } catch (e) {
-      if (e instanceof Error) {
-        setImportError(e.message)
-      } else {
-        setImportError('Invalid YAML.')
-      }
-    }
-  }, [modalText, setNodes, setEdges, setWorkers])
 
   const addNodeAt = useCallback(
     (position: { x: number; y: number }) => {
@@ -546,7 +512,6 @@ export default function FlowDemo({
                 onSave={onSaveClick}
                 onRename={onRenameClick}
                 onSaveAsNew={onSaveAsNewClick}
-                onEditCode={openCodeEditor}
               />
             </Panel>
             <Panel
@@ -604,72 +569,6 @@ export default function FlowDemo({
               </div>
             </Panel>
 
-          {isCodeEditorOpen && (
-            <Panel position="top-left" className="!left-0 !top-0 !m-0 !p-0">
-              <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
-                <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-800">Edit Project YAML</h3>
-                    <button
-                      onClick={closeModal}
-                      className="px-2 py-1 text-xs rounded border text-gray-600 hover:bg-gray-50"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  <textarea
-                    value={modalText}
-                    onChange={(e) => setModalText(e.target.value)}
-                    className="w-full min-h-[320px] border rounded p-2 text-xs font-mono text-gray-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    placeholder={'Paste YAML like:\nversion: 1\nitems:\n  - name: "Item A"'}
-                  />
-                  {importError && <p className="text-xs text-red-600">{importError}</p>}
-                  <div className="flex justify-end gap-2">
-                    <button
-                      onClick={onCodeApply}
-                      className="px-3 py-1 bg-blue-500 text-white rounded text-xs font-semibold hover:bg-blue-600"
-                    >
-                      Apply
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </Panel>
-          )}
-          {importReport && (
-            <Panel position="top-left" className="!left-0 !top-0 !m-0 !p-0">
-              <div className="fixed inset-0 z-50 bg-black/30 flex items-center justify-center p-4">
-                <div className="bg-white w-full max-w-2xl rounded-lg border shadow-xl p-4 flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-800">Code Apply Report</h3>
-                    <button
-                      onClick={() => setImportReport(null)}
-                      className="px-2 py-1 text-xs rounded border text-gray-600 hover:bg-gray-50"
-                    >
-                      Close
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs text-gray-700">
-                    <p>Items: <span className="font-semibold">{importReport.importedItems}</span></p>
-                    <p>Workers: <span className="font-semibold">{importReport.importedWorkers}</span></p>
-                    <p>Relations: <span className="font-semibold">{importReport.importedRelations}</span></p>
-                    <p>Normalized: <span className="font-semibold">{importReport.normalizedValues}</span></p>
-                    <p>Skipped rels: <span className="font-semibold">{importReport.skippedRelations}</span></p>
-                    <p>Renamed: <span className="font-semibold">{importReport.renamedItems}</span></p>
-                  </div>
-                  <div className="max-h-[280px] overflow-auto border rounded p-2 text-xs text-gray-700 font-mono bg-gray-50">
-                    {importReport.warnings.length === 0 ? (
-                      <p>No warnings.</p>
-                    ) : (
-                      importReport.warnings.map((warning, idx) => (
-                        <p key={`${warning}-${idx}`}>- {warning}</p>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-            </Panel>
-          )}
           </ReactFlow>
         </SkillSuggestionsContext.Provider>
       </WorkerPoolContext.Provider>

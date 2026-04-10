@@ -8,3 +8,6 @@
 - Avoid introducing small utility types unless they provide clear value.
 - When adding new functionality, first consider whether it should be expressed behind a meaningful interface, such as a service.
 - Use absolute imports when possible.
+- If component is used only on one page, it should be in the same directory as a page. 
+    If component is reused across the app, then it should be under /components.
+- 

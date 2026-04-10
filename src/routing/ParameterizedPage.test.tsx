@@ -28,6 +28,30 @@ describe('ParameterizedPage', () => {
     expect(capturedProjectId).toBe('draft/2026_04_08_01_30')
   })
 
+  it('passes raw path variables unchanged for singular code route', () => {
+    let capturedProjectId: string | undefined
+
+    renderToStaticMarkup(
+      <MemoryRouter initialEntries={['/project/work%2Fproject-1/code']}>
+        <Routes>
+          <Route
+            path="/project/:projectId/code"
+            element={
+              <ParameterizedPage
+                render={(pathVariables) => {
+                  capturedProjectId = pathVariables.projectId
+                  return <div>code</div>
+                }}
+              />
+            }
+          />
+        </Routes>
+      </MemoryRouter>
+    )
+
+    expect(capturedProjectId).toBe('work/project-1')
+  })
+
   it('passes live URLSearchParams', () => {
     let capturedQueryParameters: URLSearchParams | undefined
 
@@ -101,5 +125,28 @@ describe('ParameterizedPage', () => {
         </MemoryRouter>
       )
     ).toThrow('boom')
+  })
+
+  it('does not rethrow for singular code route when fallbackUrl exists and route render fails', () => {
+    expect(() =>
+      renderToStaticMarkup(
+        <MemoryRouter initialEntries={['/project/123/code']}>
+          <Routes>
+            <Route
+              path="/project/:projectId/code"
+              element={
+                <ParameterizedPage
+                  fallbackUrl="/not-found"
+                  render={() => {
+                    throw new Error('boom')
+                  }}
+                />
+              }
+            />
+            <Route path="/not-found" element={<div>not found</div>} />
+          </Routes>
+        </MemoryRouter>
+      )
+    ).not.toThrow()
   })
 })

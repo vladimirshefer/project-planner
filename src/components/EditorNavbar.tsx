@@ -1,20 +1,18 @@
 import { useRef, useState } from 'react'
 import { LuCalendarRange, LuCode, LuFolderOpen, LuPin, LuSave, LuUsers } from 'react-icons/lu'
 import { useClickOutside } from '../utils/use-click-outside'
-import {useNavigate} from "react-router-dom";
+import { useNavigate } from 'react-router-dom'
 
 export function EditorNavbar({
   projectId,
   onSave,
   onRename,
   onSaveAsNew,
-  onEditCode
 }: {
   projectId?: string | null
   onSave: () => void
   onRename: () => void
   onSaveAsNew: () => void
-  onEditCode: () => void
 }) {
   const navigate = useNavigate()
   const [isSidebarPinned, setIsSidebarPinned] = useState(false)
@@ -24,9 +22,10 @@ export function EditorNavbar({
   const isSidebarExpanded = isSidebarPinned || isSidebarHovered
   const iconClassName = 'h-4 w-4 shrink-0'
 
-  const onOpenProjects= () => navigate('/projects')
-  const onOpenWorkers= () => projectId && navigate(`/projects/${encodeURIComponent(projectId)}/workers`)
-  const onOpenTimeline= () => projectId && navigate(`/projects/${encodeURIComponent(projectId)}/timeline`)
+  const onOpenProjects = () => navigate('/projects')
+  const onOpenWorkers = () => projectId && navigate(`/projects/${encodeURIComponent(projectId)}/workers`)
+  const onOpenTimeline = () => projectId && navigate(`/projects/${encodeURIComponent(projectId)}/timeline`)
+  const onOpenCode = () => projectId && navigate(`/project/${encodeURIComponent(projectId)}/code`)
 
   useClickOutside(saveMenuRef, saveMenuOpen, () => setSaveMenuOpen(false))
 
@@ -138,9 +137,10 @@ export function EditorNavbar({
 
         <button
           type="button"
-          onClick={onEditCode}
+          onClick={onOpenCode}
+          disabled={!projectId}
           title="Edit Code"
-          className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors"
+          className="h-10 w-full rounded-md hover:bg-gray-100 text-gray-700 text-xs font-semibold flex items-center gap-2 px-3 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
         >
           <LuCode className={iconClassName} aria-hidden="true" />
           {isSidebarExpanded && <span>Edit Code</span>}
